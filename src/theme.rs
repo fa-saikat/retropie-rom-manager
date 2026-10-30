@@ -30,11 +30,12 @@ pub fn apply_accent(color: u32, cx: &mut App) {
     });
 }
 
-/// Flip light/dark. Changing mode reloads the kit's colours, so the accent
-/// is re-applied afterwards.
+/// Flip light/dark. Changing mode reloads the kit's colours and sizes, so
+/// the accent and the UI scale are re-applied afterwards.
 pub fn toggle_mode(accent_color: u32, window: &mut Window, cx: &mut App) {
     let mode = if cx.theme().is_dark() { ThemeMode::Light } else { ThemeMode::Dark };
     Theme::change(mode, Some(window), cx);
+    crate::ui::scale::apply_to_theme(cx);
     apply_accent(accent_color, cx);
 }
 
