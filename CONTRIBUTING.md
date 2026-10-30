@@ -78,8 +78,12 @@ Maintainers only.
    ```
 
 4. Commit as `release: bump to X.Y.Z` and open a pull request titled `release: X.Y.Z`. CI checks that the version goes up and that the changelog entry matches it.
-5. Merge once CI is green. CI then builds both `.deb` files and installs and removes them on Debian 12, Debian 13, Ubuntu 22.04 and Ubuntu 24.04 to check that their dependencies resolve. If they pass, it creates a draft release `vX.Y.Z` with them, `SHA256SUMS`, the changelog bullets and install commands.
-6. Check the draft on the Releases page, edit the notes if you like, and publish it. Publishing creates the `vX.Y.Z` tag.
+5. Merge once CI is green. CI then runs the tests on amd64 and arm64, builds both `.deb` files, and installs and removes them on Debian 12, Debian 13, Ubuntu 22.04 and Ubuntu 24.04 to check that their dependencies resolve. If they pass, it creates a draft release `vX.Y.Z` with them, `SHA256SUMS`, the changelog bullets and install commands.
+6. Check the draft on the Releases page, edit the notes if you like, and publish it. Publishing creates the `vX.Y.Z` tag on the merge commit and marks the release as the latest.
+
+Until you publish, the draft has no tag, so `git tag` won't show it. CI still knows about it. Other merges to main while it waits don't create a second draft, and a release PR for the same version is treated as already released.
+
+If something's wrong with a draft, delete it and fix the problem in a new pull request. No tag was created, so the version number is still free, and the next merge drafts it again. If the build or install checks fail, no draft is created at all. Fix the problem and merge again.
 
 ## Code of conduct
 
