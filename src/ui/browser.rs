@@ -197,7 +197,10 @@ impl RootView {
 
     fn show_browser(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         match self.browser.as_ref().map(|b| b.layout) {
-            Some(Layout::Dialog) => open_dialog(window, cx),
+            Some(Layout::Dialog) => {
+                open_dialog(window, cx);
+                super::nav::focus_when_open(self.browser_focus.clone(), window);
+            }
             Some(Layout::Full) => window.focus(&self.browser_focus, cx),
             None => {}
         }
@@ -576,7 +579,9 @@ fn place_row(
     let unmounted = matches!(place.kind, PlaceKind::Drive { mount: None, .. });
     h_flex()
         .id(("browser-place", ix))
-        .h(px(m.place))
+        // Grows for a drive's second line.
+        .min_h(px(m.place))
+        .py(px(4.))
         .px(px(if m.full { 12. } else { 8. }))
         .gap(px(if m.full { 14. } else { 10. }))
         .rounded(px(if m.full { 8. } else { 6. }))
@@ -640,7 +645,7 @@ fn file_rows(b: &Browser, m: Metrics, accent: Hsla, this: &WeakEntity<RootView>,
         .enumerate()
         .map(|(ix, entry)| {
             let checked = b.selected.contains(&entry.path);
-            let focused = m.full && b.focus == Focus::Files(ix);
+            let focused = b.focus == Focus::Files(ix);
             file_row(ix, entry, b.system, checked, focused, m, accent, this, cx).into_any_element()
         })
         .collect();
@@ -761,7 +766,9 @@ fn open_dialog(window: &mut Window, cx: &mut Context<RootView>) {
             .bg(t.sidebar)
             .border_r_1()
             .border_color(t.border)
-            .children(b.places.iter().enumerate().map(|(ix, place)| place_row(ix, place, ix == b.place, false, m, accent, &this, cx)));
+            .children(b.places.iter().enumerate().map(|(ix, place)| {
+                place_row(ix, place, ix == b.place, b.focus == Focus::Places(ix), m, accent, &this, cx)
+            }));
 
         let table_head = h_flex()
             .h(px(32.))
@@ -803,7 +810,7 @@ fn open_dialog(window: &mut Window, cx: &mut Context<RootView>) {
                     .child(div().flex_1().child(format!("Add ROMs to {}", b.system.display_name)))
                     .child(layout_switch(b.layout, &this)),
             )
-            .child(
+            .child(dialog_keys(
                 h_flex()
                     .h(px(440.))
                     .items_stretch()
@@ -813,7 +820,9 @@ fn open_dialog(window: &mut Window, cx: &mut Context<RootView>) {
                     .overflow_hidden()
                     .child(places)
                     .child(files),
-            )
+                &view.browser_focus,
+                &this,
+            ))
             .footer(
                 DialogFooter::new()
                     .w_full()
@@ -840,13 +849,39 @@ fn open_dialog(window: &mut Window, cx: &mut Context<RootView>) {
                             .label("Cancel")
                             .on_click(on_click(&this, |view, window, cx| view.close_browser(window, cx))),
                     )
-                    .child(
+                    .child(super::nav::ringed(
                         Button::new("browser-add")
                             .primary()
                             .label(b.add_label())
                             .disabled(b.selected.is_empty())
                             .on_click(on_click(&this, |view, window, cx| view.browser_add(window, cx))),
-                    ),
+                        b.focus == Focus::Add,
+                        t.radius,
+                        accent,
+                    )),
             )
     });
+}
+
+/// The full-window layout's keys, for the dialog's content. The dialog
+/// gets them from `RootView` through `this`, as it sits outside it.
+fn dialog_keys(el: Div, focus: &FocusHandle, this: &WeakEntity<RootView>) -> Div {
+    fn key<A: Action>(
+        this: &WeakEntity<RootView>,
+        f: fn(&mut RootView, &A, &mut Window, &mut Context<RootView>),
+    ) -> impl Fn(&A, &mut Window, &mut App) + 'static {
+        let this = this.clone();
+        move |action, window, cx| {
+            this.update(cx, |view, cx| f(view, action, window, cx)).ok();
+        }
+    }
+    el.key_context(KEY_CONTEXT)
+        .track_focus(focus)
+        .on_action(key(this, RootView::on_move_up))
+        .on_action(key(this, RootView::on_move_down))
+        .on_action(key(this, RootView::on_activate))
+        .on_action(key(this, RootView::on_back))
+        .on_action(key(this, RootView::on_focus_places))
+        .on_action(key(this, RootView::on_focus_files))
+        .on_action(key(this, RootView::on_close))
 }

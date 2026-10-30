@@ -8,15 +8,18 @@
 use gpui_kit::assets::IconName;
 use gpui_kit::component::button::{Button, ButtonVariant, ButtonVariants};
 use gpui_kit::component::description_list::DescriptionList;
-use gpui_kit::component::dialog::{AlertDialog, DialogFooter};
+use gpui_kit::component::dialog::AlertDialog;
 use gpui_kit::component::input::{Input, InputState};
 use gpui_kit::component::rating::Rating;
 use gpui_kit::component::tag::Tag;
-use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Disableable, Icon, Sizable, WindowExt, StyledExt};
+use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Icon, Sizable, WindowExt, StyledExt};
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 use std::path::PathBuf;
+use std::cell::Cell;
+use std::rc::Rc;
 
+use super::nav::{self, focus_button};
 use super::root::RootView;
 use super::scale::px;
 use super::sidebar::{system_glyph, system_tile};
@@ -80,12 +83,38 @@ pub(super) fn open_details(view: &mut RootView, entry: &GameEntry, window: &mut 
     };
     let snapshot = Snapshot { move_adds: snapshot.misplaced.is_some_and(|to| !view.is_enabled(to)), ..snapshot };
     let this = cx.entity().downgrade();
+    let keys = SheetKeys::new(cx);
+    // Play (or Move) when it can be pressed, else the first button that can.
+    let first = if snapshot.misplaced.is_some() || (snapshot.can_run && !snapshot.running) {
+        &keys.main
+    } else if snapshot.misplaced.is_none() && snapshot.can_scrape {
+        &keys.scrape
+    } else {
+        &keys.delete
+    };
+    nav::focus_when_open(first.clone(), window);
     window.open_sheet(cx, move |sheet, window, cx| {
         sheet
             .size(px(440.))
             .child(render_body(&snapshot, cx))
-            .footer(render_footer(&snapshot, window.is_fullscreen(), this.clone()))
+            .footer(render_footer(&snapshot, &keys, this.clone(), window, cx))
     });
+}
+
+/// Focus handles for the sheet's buttons.
+#[derive(Clone)]
+struct SheetKeys {
+    folder: FocusHandle,
+    scrape: FocusHandle,
+    delete: FocusHandle,
+    /// Play, or Move for a game in the wrong system.
+    main: FocusHandle,
+}
+
+impl SheetKeys {
+    fn new(cx: &mut App) -> Self {
+        Self { folder: cx.focus_handle(), scrape: cx.focus_handle(), delete: cx.focus_handle(), main: cx.focus_handle() }
+    }
 }
 
 fn section(label: &'static str, aside: Option<String>, body: impl IntoElement, cx: &App) -> impl IntoElement {
@@ -351,13 +380,11 @@ fn render_media(s: &Snapshot, cx: &App) -> impl IntoElement {
 }
 
 /// No folder button in fullscreen: the file manager would open behind the app.
-fn render_footer(s: &Snapshot, fullscreen: bool, this: WeakEntity<RootView>) -> impl IntoElement {
+/// The arrow keys move between the buttons, and P, S and X work here as they
+/// do on a card.
+fn render_footer(s: &Snapshot, keys: &SheetKeys, this: WeakEntity<RootView>, window: &Window, cx: &App) -> impl IntoElement {
+    let fullscreen = window.is_fullscreen();
     let folder = library::roms_root().join(s.system.folder);
-    let scrape_entry = s.entry.clone();
-    let delete_entry = s.entry.clone();
-    let move_entry = s.entry.clone();
-    let play_entry = s.entry.clone();
-    let (rescrape, delete, relocate, play) = (this.clone(), this.clone(), this.clone(), this);
     let play_tooltip = if !s.can_run {
         format!("RetroPie has no emulator set up for {}", s.system.display_name)
     } else if s.running {
@@ -365,74 +392,195 @@ fn render_footer(s: &Snapshot, fullscreen: bool, this: WeakEntity<RootView>) -> 
     } else {
         "Play without opening EmulationStation".to_string()
     };
-    h_flex()
+    let can_play = s.can_run && !s.running;
+
+    let play = {
+        let (this, entry) = (this.clone(), s.entry.clone());
+        Rc::new(move |window: &mut Window, cx: &mut App| {
+            this.update(cx, |view, cx| view.run_game(&entry, window, cx)).ok();
+        })
+    };
+    let scrape = {
+        let (this, entry) = (this.clone(), s.entry.clone());
+        Rc::new(move |window: &mut Window, cx: &mut App| {
+            window.close_sheet(cx);
+            this.update(cx, |view, cx| view.scrape_key(&entry, window, cx)).ok();
+        })
+    };
+    let delete = {
+        let (this, entry) = (this.clone(), s.entry.clone());
+        Rc::new(move |window: &mut Window, cx: &mut App| {
+            this.update(cx, |view, cx| confirm_delete_dialog(view, entry.clone(), window, cx)).ok();
+        })
+    };
+
+    // The buttons the arrow keys stop at: the ones that can be pressed.
+    let mut order = Vec::new();
+    if !fullscreen {
+        order.push(keys.folder.clone());
+    }
+    // Scraping as the wrong system would only fetch the wrong game.
+    if s.misplaced.is_none() && s.can_scrape {
+        order.push(keys.scrape.clone());
+    }
+    order.push(keys.delete.clone());
+    if s.misplaced.is_some() || can_play {
+        order.push(keys.main.clone());
+    }
+
+    let (p, sc, x) = (play.clone(), scrape.clone(), delete.clone());
+    let (play_ok, scrape_ok) = (can_play && s.misplaced.is_none(), s.can_scrape && s.misplaced.is_none());
+    let keys_wrap = div()
+        .w_full()
+        .key_context(nav::SHEET_CONTEXT)
+        .on_action(move |_: &nav::Play, window, cx| {
+            if play_ok {
+                p(window, cx)
+            }
+        })
+        .on_action(move |_: &nav::Scrape, window, cx| {
+            if scrape_ok {
+                sc(window, cx)
+            }
+        })
+        .on_action(move |_: &nav::Remove, window, cx| x(window, cx));
+    let buttons = nav::group(h_flex(), vec![order], None)
         .w_full()
         .gap_2()
         .when(!fullscreen, |footer| {
-            footer.child(
-                Button::new("sheet-folder")
+            footer.child(focus_button(
+                "sheet-folder",
+                &keys.folder,
+                Button::new("sheet-folder-button")
                     .ghost()
                     .small()
                     .icon(Icon::new(IconName::FolderOpen))
-                    .tooltip("Show in folder")
-                    .on_click(move |_, _, cx| {
-                        let _ = std::fs::create_dir_all(&folder);
-                        cx.open_with_system(&folder);
-                    }),
-            )
+                    .tooltip("Show in folder"),
+                true,
+                move |_, cx| {
+                    let _ = std::fs::create_dir_all(&folder);
+                    cx.open_with_system(&folder);
+                },
+                window,
+                cx,
+            ))
         })
         .child(div().flex_1())
-        // Scraping as the wrong system would only fetch the wrong game.
-        .when(s.misplaced.is_none(), |footer| footer.child(
-            Button::new("sheet-scrape")
-                .outline()
-                .small()
-                .icon(Icon::new(if s.meta.is_some() { IconName::RefreshCw } else { IconName::ImageDown }))
-                .label(if s.meta.is_some() { "Re-scrape" } else { "Scrape" })
-                .disabled(!s.can_scrape)
-                .on_click(move |_, window, cx| {
-                    window.close_sheet(cx);
-                    rescrape.update(cx, |view, cx| view.scrape_one(&scrape_entry, window, cx)).ok();
-                }),
+        .when(s.misplaced.is_none(), |footer| {
+            footer.child(focus_button(
+                "sheet-scrape",
+                &keys.scrape,
+                Button::new("sheet-scrape-button")
+                    .outline()
+                    .small()
+                    .icon(Icon::new(if s.meta.is_some() { IconName::RefreshCw } else { IconName::ImageDown }))
+                    .label(if s.meta.is_some() { "Re-scrape" } else { "Scrape" }),
+                s.can_scrape,
+                move |window, cx| scrape(window, cx),
+                window,
+                cx,
+            ))
+        })
+        .child(focus_button(
+            "sheet-delete",
+            &keys.delete,
+            Button::new("sheet-delete-button").danger().outline().small().icon(Icon::new(IconName::Trash)).label("Delete"),
+            true,
+            move |window, cx| delete(window, cx),
+            window,
+            cx,
         ))
-        .child(
-            Button::new("sheet-delete")
-                .danger()
-                .outline()
-                .small()
-                .icon(Icon::new(IconName::Trash))
-                .label("Delete")
-                .on_click(move |_, window, cx| {
-                    delete
-                        .update(cx, |view, cx| confirm_delete_dialog(view, delete_entry.clone(), window, cx))
-                        .ok();
-                }),
-        )
         .map(|footer| match s.misplaced {
             // It won't run here, so moving it is the main action.
-            Some(to) => footer.child(
-                Button::new("sheet-move")
-                    .primary()
-                    .small()
-                    .icon(Icon::new(IconName::FolderInput))
-                    .label(if s.move_adds { format!("Add {} & move", to.short_name) } else { format!("Move to {}", to.short_name) })
-                    .on_click(move |_, window, cx| {
-                        relocate.update(cx, |view, cx| view.move_game(move_entry.clone(), to, window, cx)).ok();
-                    }),
-            ),
-            None => footer.child(
-                Button::new("sheet-play")
+            Some(to) => {
+                let (this, entry) = (this.clone(), s.entry.clone());
+                footer.child(focus_button(
+                    "sheet-move",
+                    &keys.main,
+                    Button::new("sheet-move-button")
+                        .primary()
+                        .small()
+                        .icon(Icon::new(IconName::FolderInput))
+                        .label(if s.move_adds { format!("Add {} & move", to.short_name) } else { format!("Move to {}", to.short_name) }),
+                    true,
+                    move |window, cx| {
+                        this.update(cx, |view, cx| view.move_game(entry.clone(), to, window, cx)).ok();
+                    },
+                    window,
+                    cx,
+                ))
+            }
+            None => footer.child(focus_button(
+                "sheet-play",
+                &keys.main,
+                Button::new("sheet-play-button")
                     .primary()
                     .small()
                     .icon(Icon::new(IconName::Play))
                     .label("Play")
-                    .tooltip(play_tooltip.clone())
-                    .disabled(!s.can_run || s.running)
-                    .on_click(move |_, window, cx| {
-                        play.update(cx, |view, cx| view.run_game(&play_entry, window, cx)).ok();
-                    }),
+                    .tooltip(play_tooltip.clone()),
+                can_play,
+                move |window, cx| play(window, cx),
+                window,
+                cx,
+            )),
+        });
+    keys_wrap.child(buttons)
+}
+
+/// Our own dialog footer: the buttons in order, each focusable, so the
+/// arrow keys move between them and Enter presses the one with focus.
+fn dialog_footer(buttons: Vec<(FocusHandle, AnyElement)>) -> Div {
+    let order = buttons.iter().map(|(h, _)| h.clone()).collect();
+    nav::group(h_flex().w_full().gap_2().justify_end(), vec![order], None)
+        .children(buttons.into_iter().map(|(_, button)| button))
+}
+
+/// Cancel and a confirm button, with Cancel focused when the dialog opens.
+struct Confirm {
+    cancel: FocusHandle,
+    ok: FocusHandle,
+}
+
+impl Confirm {
+    fn open(window: &mut Window, cx: &mut App) -> Self {
+        let keys = Self { cancel: cx.focus_handle(), ok: cx.focus_handle() };
+        nav::focus_when_open(keys.cancel.clone(), window);
+        keys
+    }
+
+    fn footer(
+        &self,
+        cancel_label: &'static str,
+        ok: Button,
+        on_ok: impl Fn(&mut Window, &mut App) + 'static,
+        window: &Window,
+        cx: &App,
+    ) -> Div {
+        dialog_footer(vec![
+            (
+                self.cancel.clone(),
+                focus_button("dialog-cancel", &self.cancel, Button::new("dialog-cancel-button").label(cancel_label), true, |window, cx| window.close_dialog(cx), window, cx)
+                    .into_any_element(),
             ),
-        })
+            (
+                self.ok.clone(),
+                focus_button(
+                    "dialog-ok",
+                    &self.ok,
+                    ok,
+                    true,
+                    move |window, cx| {
+                        window.close_dialog(cx);
+                        on_ok(window, cx);
+                    },
+                    window,
+                    cx,
+                )
+                .into_any_element(),
+            ),
+        ])
+    }
 }
 
 pub(super) fn confirm_delete_dialog(
@@ -443,7 +591,8 @@ pub(super) fn confirm_delete_dialog(
 ) {
     let this = cx.entity().downgrade();
     let folder = view.selected.folder;
-    window.open_alert_dialog(cx, move |alert: AlertDialog, _, cx| {
+    let keys = Confirm::open(window, cx);
+    window.open_alert_dialog(cx, move |alert: AlertDialog, window, cx| {
         let t = cx.theme();
         let (title, _) = entry.title_and_tags();
         let n = entry.files.len();
@@ -468,20 +617,21 @@ pub(super) fn confirm_delete_dialog(
         alert
             .width(px(DIALOG_WIDTH))
             .p(px(DIALOG_PADDING))
-            .confirm()
             .title(format!("Delete {title}?"))
             .description(format!(
                 "{n} {} will be permanently removed from ~/RetroPie/roms/{folder}, along with its scraped artwork. This can't be undone.",
                 if n == 1 { "file" } else { "files" }
             ))
             .child(files)
-            .ok_text("Delete files")
-            .ok_variant(ButtonVariant::Danger)
-            .cancel_text("Cancel")
-            .on_ok(move |_, window, cx| {
-                this.update(cx, |view, cx| view.confirm_delete(entry.clone(), window, cx)).ok();
-                true
-            })
+            .footer(keys.footer(
+                "Cancel",
+                Button::new("delete-confirm").danger().label("Delete files"),
+                move |window, cx| {
+                    this.update(cx, |view, cx| view.confirm_delete(entry.clone(), window, cx)).ok();
+                },
+                window,
+                cx,
+            ))
     });
 }
 
@@ -574,7 +724,10 @@ pub(super) fn confirm_wrong_system(
     let can_stay = files
         .iter()
         .any(|(p, _)| here.extensions.contains(&library::ext_lower(p).as_str()));
-    window.open_dialog(cx, move |dialog, _, cx| {
+    let (skip_key, stay_key, go_key) = (cx.focus_handle(), cx.focus_handle(), cx.focus_handle());
+    // Nothing is lost either way, so start on the suggested choice.
+    nav::focus_when_open(go_key.clone(), window);
+    window.open_dialog(cx, move |dialog, window, cx| {
         let t = cx.theme();
         let (go, stay) = (this.clone(), this.clone());
         let go_files = files.clone();
@@ -592,28 +745,50 @@ pub(super) fn confirm_wrong_system(
                     .child(div().text_sm().text_color(t.muted_foreground).child(note.clone()))
                     .child(destination_list(rows, cx)),
             )
-            .footer(
-                h_flex()
-                    .w_full()
-                    .gap_2()
-                    .child(Button::new("wrong-skip").ghost().label("Skip").on_click(|_, window, cx| window.close_dialog(cx)))
+            .footer({
+                let mut order = vec![skip_key.clone()];
+                if can_stay {
+                    order.push(stay_key.clone());
+                }
+                order.push(go_key.clone());
+                nav::group(h_flex().w_full().gap_2(), vec![order], None)
+                    .child(focus_button(
+                        "wrong-skip",
+                        &skip_key,
+                        Button::new("wrong-skip-button").ghost().label("Skip"),
+                        true,
+                        |window, cx| window.close_dialog(cx),
+                        window,
+                        cx,
+                    ))
                     .child(div().flex_1())
                     .when(can_stay, |footer| {
-                        footer.child(
-                            Button::new("wrong-stay")
-                                .outline()
-                                .label(format!("Add to {} anyway", here.short_name))
-                                .on_click(move |_, window, cx| {
-                                    window.close_dialog(cx);
-                                    stay.update(cx, |view, cx| view.install_into(stay_files.clone(), window, cx)).ok();
-                                }),
-                        )
+                        footer.child(focus_button(
+                            "wrong-stay",
+                            &stay_key,
+                            Button::new("wrong-stay-button").outline().label(format!("Add to {} anyway", here.short_name)),
+                            true,
+                            move |window, cx| {
+                                window.close_dialog(cx);
+                                stay.update(cx, |view, cx| view.install_into(stay_files.clone(), window, cx)).ok();
+                            },
+                            window,
+                            cx,
+                        ))
                     })
-                    .child(Button::new("wrong-go").primary().label(go_label.clone()).on_click(move |_, window, cx| {
-                        window.close_dialog(cx);
-                        go.update(cx, |view, cx| view.install_elsewhere(go_files.clone(), window, cx)).ok();
-                    })),
-            )
+                    .child(focus_button(
+                        "wrong-go",
+                        &go_key,
+                        Button::new("wrong-go-button").primary().label(go_label.clone()),
+                        true,
+                        move |window, cx| {
+                            window.close_dialog(cx);
+                            go.update(cx, |view, cx| view.install_elsewhere(go_files.clone(), window, cx)).ok();
+                        },
+                        window,
+                        cx,
+                    ))
+            })
     });
 }
 
@@ -636,25 +811,28 @@ pub(super) fn confirm_move_misplaced(view: &mut RootView, window: &mut Window, c
         view.selected.folder,
         added_note(&new).unwrap_or_default(),
     );
-    window.open_alert_dialog(cx, move |alert: AlertDialog, _, cx| {
+    let keys = Confirm::open(window, cx);
+    window.open_alert_dialog(cx, move |alert: AlertDialog, window, cx| {
         let n = games.len();
         let this = this.clone();
         alert
             .width(px(DIALOG_WIDTH))
             .p(px(DIALOG_PADDING))
-            .confirm()
             .title(format!("Move {n} {}?", if n == 1 { "game" } else { "games" }))
             .description(description.clone())
             .child(destination_list(
                 games.iter().map(|(title, to, adds)| destination_row(title.clone(), to, *adds, cx)),
                 cx,
             ))
-            .ok_text("Move games")
-            .cancel_text("Cancel")
-            .on_ok(move |_, window, cx| {
-                this.update(cx, |view, cx| view.move_all_misplaced(window, cx)).ok();
-                true
-            })
+            .footer(keys.footer(
+                "Cancel",
+                Button::new("move-confirm").primary().label("Move games"),
+                move |window, cx| {
+                    this.update(cx, |view, cx| view.move_all_misplaced(window, cx)).ok();
+                },
+                window,
+                cx,
+            ))
     });
 }
 
@@ -667,6 +845,7 @@ struct Choice {
     waiting: usize,
     /// RetroPie has an emulator set up for it.
     installed: bool,
+    focus: FocusHandle,
 }
 
 impl Choice {
@@ -695,35 +874,50 @@ pub(super) fn open_add_system(view: &mut RootView, window: &mut Window, cx: &mut
             photo: assets::system_photo(system),
             waiting: view.waiting_for(system).len(),
             installed: view.runnable.contains(system.id),
+            focus: cx.focus_handle(),
         })
         .collect();
     let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search systems"));
-    search.update(cx, |s, cx| s.focus(window, cx));
-    window.open_dialog(cx, move |dialog, _, cx| {
+    // Once the dialog has opened and taken focus for itself.
+    let focus = search.clone();
+    window.on_next_frame(move |window, cx| focus.update(cx, |s, cx| s.focus(window, cx)));
+    // Down or Enter in the search field goes on to the first match.
+    let first = {
+        let (choices, search) = (choices.clone(), search.clone());
+        Rc::new(move |window: &mut Window, cx: &mut App| {
+            let query = search.read(cx).value().trim().to_lowercase();
+            let groups = choice_groups(&choices, &query);
+            if let Some(choice) = groups.first().and_then(|(_, items)| items.first()) {
+                window.focus(&choice.focus, cx);
+            }
+        })
+    };
+    let scroll = ScrollHandle::new();
+    window.open_dialog(cx, move |dialog, window, cx| {
         let t = cx.theme();
         let query = search.read(cx).value().trim().to_lowercase();
         let visible: Vec<&Choice> = choices.iter().filter(|c| c.matches(&query)).collect();
-
-        let mut groups: Vec<(String, Vec<&Choice>)> = Vec::new();
-        let suggested: Vec<&Choice> = visible.iter().copied().filter(|c| c.waiting > 0).collect();
-        if !suggested.is_empty() {
-            groups.push(("Suggested for games you already have".into(), suggested));
-        }
-        for maker in MAKERS {
-            let items: Vec<&Choice> =
-                visible.iter().copied().filter(|c| c.system.maker == *maker && c.waiting == 0).collect();
-            if !items.is_empty() {
-                groups.push((maker.to_string(), items));
-            }
-        }
+        let groups = choice_groups(&choices, &query);
+        // Three cards a row, a group at a time.
+        let rows: Vec<Vec<FocusHandle>> = groups
+            .iter()
+            .flat_map(|(_, items)| items.chunks(3).map(|row| row.iter().map(|c| c.focus.clone()).collect()))
+            .collect();
+        let to_search = {
+            let search = search.clone();
+            Rc::new(move |window: &mut Window, cx: &mut App| search.update(cx, |s, cx| s.focus(window, cx)))
+                as nav::Handler
+        };
 
         let body = if choices.is_empty() {
             empty_note("Every system the app knows is already in your list.", cx)
         } else if visible.is_empty() {
             empty_note(&format!("No system matches “{query}”."), cx)
         } else {
-            v_flex().gap_6().pb_1().children(groups.into_iter().map(|(heading, items)| {
+            nav::group(v_flex(), rows, Some(to_search)).gap_6().pb_1().children(groups.into_iter().map(|(heading, items)| {
                 let count = items.len();
+                let focused = items.iter().position(|c| c.focus.is_focused(window));
+                let scroll = scroll.clone();
                 v_flex()
                     .gap_2p5()
                     .child(
@@ -740,7 +934,12 @@ pub(super) fn open_add_system(view: &mut RootView, window: &mut Window, cx: &mut
                             .grid()
                             .grid_cols(3)
                             .gap_3()
-                            .children(items.into_iter().map(|choice| choice_card(choice, this.clone(), cx))),
+                            .when_some(focused, |grid, ix| {
+                                grid.on_children_prepainted(move |bounds, window, _| {
+                                    nav::reveal_child(&scroll, &Cell::new(true), bounds.get(ix).copied(), window)
+                                })
+                            })
+                            .children(items.into_iter().map(|choice| choice_card(choice, this.clone(), window, cx))),
                     )
             }))
         };
@@ -759,15 +958,29 @@ pub(super) fn open_add_system(view: &mut RootView, window: &mut Window, cx: &mut
                             .child(div().flex_1().min_w_0().text_sm().text_color(t.muted_foreground).child(
                                 "Pick a system to add it to your list.",
                             ))
-                            .child(
-                                div().w(px(220.)).flex_shrink_0().child(
-                                    Input::new(&search)
-                                        .prefix(Icon::new(IconName::Search).small().text_color(t.muted_foreground))
-                                        .cleanable(true),
-                                ),
-                            ),
+                            .child({
+                                let (leave, back) = (first.clone(), search.clone());
+                                div()
+                                    .key_context(ADD_SYSTEM_SEARCH)
+                                    .on_action(move |_: &nav::Leave, window, cx| leave(window, cx))
+                                    // Backspace on an empty search closes, like elsewhere in the dialog.
+                                    .on_action(move |_: &nav::Back, window, cx| {
+                                        if back.read(cx).value().is_empty() {
+                                            window.close_dialog(cx);
+                                        } else {
+                                            cx.propagate();
+                                        }
+                                    })
+                                    .w(px(220.))
+                                    .flex_shrink_0()
+                                    .child(
+                                        Input::new(&search)
+                                            .prefix(Icon::new(IconName::Search).small().text_color(t.muted_foreground))
+                                            .cleanable(true),
+                                    )
+                            }),
                     )
-                    .child(div().id("add-system-scroll").h(px(500.)).overflow_y_scroll().pr_1().child(body))
+                    .child(div().id("add-system-scroll").h(px(500.)).overflow_y_scroll().track_scroll(&scroll).pr_1().child(body))
                     .child(
                         div()
                             .text_xs()
@@ -776,6 +989,26 @@ pub(super) fn open_add_system(view: &mut RootView, window: &mut Window, cx: &mut
                     ),
             )
     });
+}
+
+/// Wraps the Add emulator search field, for Down, Enter and Backspace in it.
+pub const ADD_SYSTEM_SEARCH: &str = "AddSystemSearch";
+
+/// The picker's groups: systems with games waiting first, then by maker.
+fn choice_groups<'a>(choices: &'a [Choice], query: &str) -> Vec<(String, Vec<&'a Choice>)> {
+    let visible: Vec<&Choice> = choices.iter().filter(|c| c.matches(query)).collect();
+    let mut groups: Vec<(String, Vec<&Choice>)> = Vec::new();
+    let suggested: Vec<&Choice> = visible.iter().copied().filter(|c| c.waiting > 0).collect();
+    if !suggested.is_empty() {
+        groups.push(("Suggested for games you already have".into(), suggested));
+    }
+    for maker in MAKERS {
+        let items: Vec<&Choice> = visible.iter().copied().filter(|c| c.system.maker == *maker && c.waiting == 0).collect();
+        if !items.is_empty() {
+            groups.push((maker.to_string(), items));
+        }
+    }
+    groups
 }
 
 fn empty_note(text: &str, cx: &App) -> Div {
@@ -788,7 +1021,7 @@ fn empty_note(text: &str, cx: &App) -> Div {
         .child(text.to_string())
 }
 
-fn choice_card(choice: &Choice, this: WeakEntity<RootView>, cx: &App) -> impl IntoElement {
+fn choice_card(choice: &Choice, this: WeakEntity<RootView>, window: &Window, cx: &App) -> impl IntoElement {
     let t = cx.theme();
     let system = choice.system;
     let accent = theme::accent(system.accent);
@@ -858,8 +1091,11 @@ fn choice_card(choice: &Choice, this: WeakEntity<RootView>, cx: &App) -> impl In
                 ),
         );
 
+    let focused = choice.focus.is_focused(window);
     v_flex()
         .id(SharedString::from(format!("add-{}", system.id)))
+        .track_focus(&choice.focus)
+        .relative()
         .group(group)
         .rounded(t.radius_lg)
         .overflow_hidden()
@@ -870,6 +1106,7 @@ fn choice_card(choice: &Choice, this: WeakEntity<RootView>, cx: &App) -> impl In
         .hover(|s| s.border_color(accent))
         .child(photo)
         .child(caption)
+        .when(focused, |card| card.child(nav::ring(t.radius_lg, accent)))
         .on_click(move |_, window, cx| {
             window.close_dialog(cx);
             this.update(cx, |view, cx| view.add_system(system, window, cx)).ok();
@@ -887,7 +1124,8 @@ pub(super) fn confirm_remove_system(
     let n = games.len();
     let files: usize = games.iter().map(|g| g.files.len()).sum();
     let bytes: u64 = games.iter().flat_map(|g| g.file_sizes()).sum();
-    window.open_alert_dialog(cx, move |alert: AlertDialog, _, _| {
+    let keys = Confirm::open(window, cx);
+    window.open_alert_dialog(cx, move |alert: AlertDialog, window, cx| {
         let this = this.clone();
         let description = if n == 0 {
             "It has no games, so nothing is deleted. You can add it back from Add emulator any time.".to_string()
@@ -904,23 +1142,25 @@ pub(super) fn confirm_remove_system(
         alert
             .width(px(DIALOG_WIDTH))
             .p(px(DIALOG_PADDING))
-            .confirm()
             .title(format!("Remove {}?", system.display_name))
             .description(description)
-            .ok_text(if n == 0 { "Remove".to_string() } else { format!("Delete {n} {} & remove", if n == 1 { "game" } else { "games" }) })
-            .ok_variant(if n == 0 { ButtonVariant::Primary } else { ButtonVariant::Danger })
-            .cancel_text("Cancel")
-            .on_ok(move |_, window, cx| {
-                this.update(cx, |view, cx| view.remove_system(system, window, cx)).ok();
-                true
-            })
+            .footer(keys.footer(
+                "Cancel",
+                Button::new("remove-confirm")
+                    .label(if n == 0 { "Remove".to_string() } else { format!("Delete {n} {} & remove", if n == 1 { "game" } else { "games" }) })
+                    .with_variant(if n == 0 { ButtonVariant::Primary } else { ButtonVariant::Danger }),
+                move |window, cx| {
+                    this.update(cx, |view, cx| view.remove_system(system, window, cx)).ok();
+                },
+                window,
+                cx,
+            ))
     });
 }
 
-/// Quitting always asks, and lists anything quitting would interrupt. The
-/// footer is our own: the kit binds Enter to a dialog's OK button, and a
-/// stray Enter (a gamepad's A button, say) mustn't quit. With this footer,
-/// Enter, Esc and Backspace all just close the dialog.
+/// Quitting always asks, and lists anything quitting would interrupt.
+/// Cancel has focus when it opens, so a stray Enter (a gamepad's A button,
+/// say) just closes it.
 pub(super) fn confirm_quit(view: &RootView, window: &mut Window, cx: &mut Context<RootView>) {
     let mut busy = Vec::new();
     if let Some(game) = &view.running {
@@ -939,7 +1179,8 @@ pub(super) fn confirm_quit(view: &RootView, window: &mut Window, cx: &mut Contex
         busy.push("ROMs are still being copied. Quitting now can leave incomplete files in ~/RetroPie/roms.".to_string());
     }
     let this = cx.entity().downgrade();
-    window.open_alert_dialog(cx, move |alert: AlertDialog, _, cx| {
+    let keys = Confirm::open(window, cx);
+    window.open_alert_dialog(cx, move |alert: AlertDialog, window, cx| {
         let t = cx.theme();
         let (closed, cancelled) = (this.clone(), this.clone());
         alert
@@ -958,43 +1199,66 @@ pub(super) fn confirm_quit(view: &RootView, window: &mut Window, cx: &mut Contex
             .on_close(move |_, _, cx| {
                 closed.update(cx, |view, _| view.quit_open = false).ok();
             })
-            .footer(
-                DialogFooter::new()
-                    // `close_dialog` skips `on_close`, so clear the flag here too.
-                    .child(Button::new("quit-cancel").label("Cancel").on_click(move |_, window, cx| {
-                        cancelled.update(cx, |view, _| view.quit_open = false).ok();
-                        window.close_dialog(cx);
-                    }))
-                    .child(
-                        Button::new("quit-confirm")
+            .footer(dialog_footer(vec![
+                (
+                    keys.cancel.clone(),
+                    focus_button(
+                        "quit-cancel",
+                        &keys.cancel,
+                        Button::new("quit-cancel-button").label("Cancel"),
+                        true,
+                        move |window, cx| {
+                            // `close_dialog` skips `on_close`, so clear the flag here too.
+                            cancelled.update(cx, |view, _| view.quit_open = false).ok();
+                            window.close_dialog(cx);
+                        },
+                        window,
+                        cx,
+                    )
+                    .into_any_element(),
+                ),
+                (
+                    keys.ok.clone(),
+                    focus_button(
+                        "quit-confirm",
+                        &keys.ok,
+                        Button::new("quit-confirm-button")
                             .label("Quit")
-                            .with_variant(if busy.is_empty() { ButtonVariant::Primary } else { ButtonVariant::Danger })
-                            .on_click(|_, _, cx| cx.quit()),
-                    ),
-            )
+                            .with_variant(if busy.is_empty() { ButtonVariant::Primary } else { ButtonVariant::Danger }),
+                        true,
+                        |_, cx| cx.quit(),
+                        window,
+                        cx,
+                    )
+                    .into_any_element(),
+                ),
+            ]))
     });
 }
 
 pub(super) fn confirm_install_skyscraper(window: &mut Window, cx: &mut Context<RootView>) {
     let this = cx.entity().downgrade();
-    window.open_alert_dialog(cx, move |alert: AlertDialog, _, _| {
+    let keys = Confirm::open(window, cx);
+    window.open_alert_dialog(cx, move |alert: AlertDialog, window, cx| {
         let this = this.clone();
         alert
             .width(px(DIALOG_WIDTH))
             .p(px(DIALOG_PADDING))
-            .confirm()
             .title("Install Skyscraper?")
             .description(
                 "This runs RetroPie-Setup's Skyscraper package, the same as Manage packages → opt → skyscraper. \
                  It needs administrator rights, so you may be asked for your password, and it can take \
                  10–20 minutes on a Raspberry Pi while it builds. You can keep using the app meanwhile.",
             )
-            .ok_text("Install")
-            .cancel_text("Not now")
-            .on_ok(move |_, window, cx| {
-                this.update(cx, |view, cx| view.install_skyscraper(window, cx)).ok();
-                true
-            })
+            .footer(keys.footer(
+                "Not now",
+                Button::new("install-confirm").primary().label("Install"),
+                move |window, cx| {
+                    this.update(cx, |view, cx| view.install_skyscraper(window, cx)).ok();
+                },
+                window,
+                cx,
+            ))
     });
 }
 
@@ -1005,7 +1269,9 @@ pub(super) fn open_about(view: &mut RootView, window: &mut Window, cx: &mut Cont
         "Skyscraper not installed".to_string()
     };
     let system = view.selected;
-    window.open_dialog(cx, move |dialog, _, cx| {
+    let close = cx.focus_handle();
+    nav::focus_when_open(close.clone(), window);
+    window.open_dialog(cx, move |dialog, window, cx| {
         let t = cx.theme();
         dialog
             .title("RetroPie ROM Manager")
@@ -1049,13 +1315,11 @@ pub(super) fn open_about(view: &mut RootView, window: &mut Window, cx: &mut Cont
                             .item("License", "MIT", 1),
                     ),
             )
-            .footer(
-                h_flex().w_full().justify_end().child(
-                    Button::new("about-close")
-                        .label("Close")
-                        .on_click(|_, window, cx| window.close_dialog(cx)),
-                ),
-            )
+            .footer(dialog_footer(vec![(
+                close.clone(),
+                focus_button("about-close", &close, Button::new("about-close-button").label("Close"), true, |window, cx| window.close_dialog(cx), window, cx)
+                    .into_any_element(),
+            )]))
     });
 }
 
