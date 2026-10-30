@@ -42,6 +42,16 @@ jobs:
             echo "release=true" >> "$GITHUB_OUTPUT"
           fi
 
+      - name: Check version goes up
+        if: steps.version.outputs.release == 'true'
+        run: |
+          version=${{ steps.version.outputs.version }}
+          latest=$(git tag -l 'v*' | sed 's/^v//' | sort -V | tail -n1)
+          if [ -n "$latest" ] && [ "$(printf '%s\n%s\n' "$latest" "$version" | sort -V | tail -n1)" != "$version" ]; then
+            echo "::error::Cargo.toml says $version, which is lower than the latest release v$latest."
+            exit 1
+          fi
+
       - name: Check changelog matches
         if: steps.version.outputs.release == 'true'
         run: |

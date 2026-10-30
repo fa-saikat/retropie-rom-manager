@@ -1,0 +1,24 @@
+name: Feature request
+description: Suggest something new, or a change to how something works.
+labels: [enhancement, needs-triage]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to do?
+      description: The problem or the situation, before any solution. "I keep my ROMs on a USB drive and…" helps more than "add a setting for…".
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: What would you like the app to do?
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: How do you handle it today?
+      description: Optional. Workarounds, or other tools you've tried.

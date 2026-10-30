@@ -149,7 +149,9 @@ Debug builds can open straight into a given state, which helps with screenshots 
 
 ## Contributing
 
-Bug reports and pull requests are welcome. If a ROM is detected as the wrong system, or isn't detected when it should be, please open an issue with the system, the file name and its size. Don't attach the ROM itself.
+Bug reports and pull requests are welcome. If a ROM is detected as the wrong system, or isn't detected when it should be, use the [wrong system form](https://github.com/fa-saikat/retropie-rom-manager/issues/new?template=wrong_system.yml). It asks for the file name and size, so don't attach the ROM itself.
+
+[CONTRIBUTING.md](CONTRIBUTING.md) covers the development setup, pull requests and how versions are numbered.
 
 ## Credits
 
