@@ -69,6 +69,15 @@ On displays taller than 1080p, such as 1440p or 4K, the UI scales up so it looks
 
 The arm64 build is new. If it doesn't start on your board, please [open an issue](https://github.com/fa-saikat/retropie-rom-manager/issues) with the board, OS and the terminal output.
 
+### Command-line options
+
+| Option | Effect |
+|---|---|
+| `--fullscreen` | Run in fullscreen, e.g. on a TV. Fullscreen comes only from this option, so there's no key to switch it on or off. Also available as **Open in Fullscreen** when you right-click the launcher. |
+| `--theme light\|dark` | Start in the light or dark theme |
+| `-h`, `--help` | Print the options and exit |
+| `-V`, `--version` | Print the version and exit |
+
 ## How it works
 
 ### Recognising the system
@@ -139,7 +148,6 @@ Debug builds can open straight into a given state, which helps with screenshots 
 |---|---|
 | `ROM_MANAGER_SYSTEM=<id>` | Open on a system, e.g. `psx` |
 | `ROM_MANAGER_VIEW=list` | Start in list view |
-| `ROM_MANAGER_THEME=dark` | Start in dark mode |
 | `ROM_MANAGER_OPEN=<index>` | Open the details panel for that card |
 | `ROM_MANAGER_DIALOG=…` | `delete`, `about`, `install-skyscraper`, `add-system`, `remove-system` or `move` |
 | `ROM_MANAGER_RUN=…` | Start `install-skyscraper` or `scrape` right away |

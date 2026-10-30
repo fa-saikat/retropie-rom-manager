@@ -32,7 +32,7 @@ body:
     id: version
     attributes:
       label: App version
-      description: Shown in About, or run `dpkg -s retropie-rom-manager | grep Version`.
+      description: Shown in About, or run `retropie-rom-manager --version`.
       placeholder: "2.1.0"
     validations:
       required: true

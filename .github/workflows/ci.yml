@@ -162,7 +162,7 @@ jobs:
 
   install:
     name: Install on ${{ matrix.image }} (${{ matrix.arch }})
-    needs: build
+    needs: [version, build]
     strategy:
       fail-fast: false
       matrix:
@@ -197,6 +197,13 @@ jobs:
             echo "$missing"
             exit 1
           fi
+
+      # Needs no display, so it shows the binary loads and runs.
+      - name: Run --version
+        run: |
+          output=$(retropie-rom-manager --version)
+          echo "$output"
+          test "$output" = "retropie-rom-manager ${{ needs.version.outputs.version }}"
 
       - name: Remove
         run: |

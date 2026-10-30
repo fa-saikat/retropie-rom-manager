@@ -1,4 +1,5 @@
 mod assets;
+mod cli;
 mod config;
 mod detect;
 mod launch;
@@ -14,15 +15,35 @@ use gpui_kit::{size, AppContext, Bounds, KeyBinding, Size, TitlebarOptions, Wind
 use ui::scale::{self, px};
 
 fn main() {
+    let options = match cli::parse(std::env::args().skip(1)) {
+        Ok(cli::Command::Run(options)) => options,
+        Ok(cli::Command::Help) => {
+            println!("{}", cli::help());
+            return;
+        }
+        Ok(cli::Command::Version) => {
+            println!("{}", cli::version());
+            return;
+        }
+        Err(err) => {
+            eprintln!("error: {err}\n\n{}\n\nFor more information, try '--help'.", cli::USAGE);
+            std::process::exit(2);
+        }
+    };
+
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn,wgpu_hal=off")).init();
-    log::info!("retropie-rom-manager {}", env!("CARGO_PKG_VERSION"));
+    log::info!("{}", cli::version());
 
     gpui_kit::application()
         .with_assets(assets::AppAssets)
-        .run(|cx| {
+        .run(move |cx| {
             gpui_kit::init(cx);
             scale::init(cx);
-            Theme::change(ThemeMode::Light, None, cx);
+            let mode = match options.theme {
+                Some(cli::Theme::Dark) => ThemeMode::Dark,
+                Some(cli::Theme::Light) | None => ThemeMode::Light,
+            };
+            Theme::change(mode, None, cx);
             scale::apply_to_theme(cx);
             // We keep the native title bar, so sheets can use the full height.
             Theme::update(cx, |t| t.sheet.margin_top = px(0.));
@@ -36,7 +57,7 @@ fn main() {
                 height: wanted.height.max(min_size.height),
             };
 
-            let options = WindowOptions {
+            let window_options = WindowOptions {
                 window_bounds: Some(WindowBounds::Windowed(Bounds::centered(None, window_size, cx))),
                 window_min_size: Some(min_size),
                 titlebar: Some(TitlebarOptions {
@@ -46,7 +67,13 @@ fn main() {
                 app_id: Some("retropie-rom-manager".into()),
                 ..Default::default()
             };
-            gpui_kit::open_window(options, cx, |window, cx| {
+            gpui_kit::open_window(window_options, cx, move |window, cx| {
+                // Opening with fullscreen bounds isn't honoured on X11, so
+                // ask the window manager once the window exists. The app
+                // offers no way to toggle it afterwards.
+                if options.fullscreen {
+                    window.toggle_fullscreen();
+                }
                 cx.new(|cx| ui::RootView::new(window, cx))
             })
             .expect("failed to open window");
