@@ -23,7 +23,7 @@ use std::path::PathBuf;
 gpui_kit::assets::icon_assets!(ExtraIcons, [
     Trash, LayoutGrid, List, ImageDown, ImageOff, Gamepad2, Upload, X, VideoOff, Files, Download,
     FolderInput, TriangleAlert, ArrowRight, Play, Folder, File, HardDrive, House, ArrowUp,
-    ChevronRight,
+    ChevronRight, AppWindow, Maximize,
 ]);
 
 /// Tabler icons the UI needs, embedded so a missing `assets/` folder can't

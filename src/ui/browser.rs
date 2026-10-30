@@ -520,8 +520,18 @@ fn layout_switch(layout: Layout, this: &WeakEntity<RootView>) -> impl IntoElemen
     ButtonGroup::new("browser-layout")
         .outline()
         .small()
-        .child(Button::new("browser-layout-dialog").label("Dialog").selected(layout == Layout::Dialog))
-        .child(Button::new("browser-layout-full").label("Full window").selected(layout == Layout::Full))
+        .child(
+            Button::new("browser-layout-dialog")
+                .icon(Icon::new(IconName::AppWindow))
+                .tooltip("Dialog")
+                .selected(layout == Layout::Dialog),
+        )
+        .child(
+            Button::new("browser-layout-full")
+                .icon(Icon::new(IconName::Maximize))
+                .tooltip("Full window")
+                .selected(layout == Layout::Full),
+        )
         .on_click(move |selected: &Vec<usize>, window, cx| {
             let layout = if selected.contains(&1) { Layout::Full } else { Layout::Dialog };
             this.update(cx, |view, cx| view.set_browser_layout(layout, window, cx)).ok();
