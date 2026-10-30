@@ -30,7 +30,7 @@ gpui-pre-wgpu = { path = "vendor/gpui-pre-wgpu" }
 
 [package.metadata.deb]
 maintainer = "Fahim A Saikat <fahimabrar.saikat@gmail.com>"
-copyright = "2026, JaduPc <Fahim A Saikat>"
+copyright = "2026, JaduPc"
 license-file = ["LICENSE", "4"]
 extended-description = """\
 A desktop RetroPie ROM manager for Linux. Install, browse, play and \
