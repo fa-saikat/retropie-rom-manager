@@ -123,7 +123,6 @@ impl RootView {
                 .child(Progress::new("scrape-progress").value(job.done as f32 / job.total as f32 * 100.))
         });
 
-        let folder = self.system_folder();
         h_flex()
             .gap_4()
             .items_start()
@@ -145,13 +144,6 @@ impl RootView {
             .child(
                 h_flex()
                     .gap_2()
-                    .child(
-                        Button::new("open-system-folder")
-                            .outline()
-                            .icon(Icon::new(IconName::FolderOpen))
-                            .tooltip("Open in file manager")
-                            .on_click(cx.listener(move |this, _, _, cx| this.open_folder(folder.clone(), cx))),
-                    )
                     .child(
                         Button::new("scrape-all")
                             .outline()

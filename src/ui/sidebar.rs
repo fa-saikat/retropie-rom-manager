@@ -9,7 +9,6 @@ use gpui_kit::assets::IconName;
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::sidebar::{Sidebar, SidebarItem};
 use gpui_kit::component::tag::Tag;
-use gpui_kit::component::tooltip::Tooltip;
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Collapsible, Icon, Sizable, StyledExt};
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
@@ -281,15 +280,9 @@ impl RootView {
             }));
         }
 
-        let roms_root = crate::library::roms_root();
         let footer = v_flex()
             .w_full()
             .gap_0p5()
-            .child(
-                footer_row("open-roms", Icon::new(IconName::FolderOpen), "ROMs folder", cx)
-                    .tooltip(|window, cx| Tooltip::new("Open ~/RetroPie/roms").build(window, cx))
-                    .on_click(cx.listener(move |this, _, _, cx| this.open_folder(roms_root.clone(), cx))),
-            )
             .child(
                 footer_row("about", Icon::new(IconName::Info), "About", cx)
                     .on_click(cx.listener(|this, _, window, cx| details::open_about(this, window, cx))),

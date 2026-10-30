@@ -351,7 +351,6 @@ fn render_media(s: &Snapshot, cx: &App) -> impl IntoElement {
 }
 
 fn render_footer(s: &Snapshot, this: WeakEntity<RootView>) -> impl IntoElement {
-    let folder = library::roms_root().join(s.system.folder);
     let scrape_entry = s.entry.clone();
     let delete_entry = s.entry.clone();
     let move_entry = s.entry.clone();
@@ -367,17 +366,6 @@ fn render_footer(s: &Snapshot, this: WeakEntity<RootView>) -> impl IntoElement {
     h_flex()
         .w_full()
         .gap_2()
-        .child(
-            Button::new("sheet-folder")
-                .ghost()
-                .small()
-                .icon(Icon::new(IconName::FolderOpen))
-                .tooltip("Show in folder")
-                .on_click(move |_, _, cx| {
-                    let _ = std::fs::create_dir_all(&folder);
-                    cx.open_with_system(&folder);
-                }),
-        )
         .child(div().flex_1())
         // Scraping as the wrong system would only fetch the wrong game.
         .when(s.misplaced.is_none(), |footer| footer.child(

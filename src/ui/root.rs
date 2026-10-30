@@ -376,15 +376,6 @@ impl RootView {
         cx.notify();
     }
 
-    pub(super) fn open_folder(&self, folder: PathBuf, cx: &mut App) {
-        let _ = std::fs::create_dir_all(&folder);
-        cx.open_with_system(&folder);
-    }
-
-    pub(super) fn system_folder(&self) -> PathBuf {
-        library::roms_root().join(self.selected.folder)
-    }
-
     // -----------------------------------------------------------------------
     // Install
     // -----------------------------------------------------------------------
