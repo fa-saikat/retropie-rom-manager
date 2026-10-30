@@ -1,6 +1,7 @@
 mod browser;
 mod details;
 mod library;
+pub mod nav;
 mod root;
 pub mod scale;
 mod sidebar;

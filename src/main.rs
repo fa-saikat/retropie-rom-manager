@@ -12,8 +12,13 @@ mod theme;
 mod ui;
 
 use gpui_kit::component::{dialog, Theme, ThemeMode};
-use gpui_kit::{size, AppContext, Bounds, KeyBinding, Size, TitlebarOptions, WindowBounds, WindowOptions};
+use gpui_kit::{size, AppContext, Bounds, KeyBinding, NoAction, Size, TitlebarOptions, WindowBounds, WindowOptions};
+use ui::nav;
 use ui::scale::{self, px};
+
+/// The library's search field (kit inputs use the `Input` context).
+const SEARCH: &str = "LibrarySearch > Input";
+const ADD_SYSTEM_SEARCH: &str = "AddSystemSearch > Input";
 
 fn main() {
     let options = match cli::parse(std::env::args().skip(1)) {
@@ -61,6 +66,36 @@ fn main() {
                 KeyBinding::new("left", ui::FocusPlaces, Some(ui::BROWSER_KEY_CONTEXT)),
                 KeyBinding::new("right", ui::FocusFiles, Some(ui::BROWSER_KEY_CONTEXT)),
                 KeyBinding::new("escape", ui::Close, Some(ui::BROWSER_KEY_CONTEXT)),
+                // The main window, while it has focus itself (#42).
+                KeyBinding::new("up", nav::Up, Some(nav::KEY_CONTEXT)),
+                KeyBinding::new("down", nav::Down, Some(nav::KEY_CONTEXT)),
+                KeyBinding::new("left", nav::Left, Some(nav::KEY_CONTEXT)),
+                KeyBinding::new("right", nav::Right, Some(nav::KEY_CONTEXT)),
+                KeyBinding::new("enter", nav::Activate, Some(nav::KEY_CONTEXT)),
+                KeyBinding::new("backspace", nav::Back, Some(nav::KEY_CONTEXT)),
+                KeyBinding::new("p", nav::Play, Some(nav::KEY_CONTEXT)),
+                KeyBinding::new("s", nav::Scrape, Some(nav::KEY_CONTEXT)),
+                KeyBinding::new("x", nav::Remove, Some(nav::KEY_CONTEXT)),
+                // The search field: Down and Enter go on to the results,
+                // Backspace on an empty field and Esc go back.
+                KeyBinding::new("down", nav::Leave, Some(SEARCH)),
+                KeyBinding::new("enter", nav::Leave, Some(SEARCH)),
+                KeyBinding::new("backspace", nav::Back, Some(SEARCH)),
+                KeyBinding::new("escape", dialog::Cancel, Some(SEARCH)),
+                // Buttons in dialogs and the sheet. Enter presses the one
+                // with focus, instead of the kit's "Enter is OK".
+                KeyBinding::new("up", nav::Up, Some(nav::GROUP_CONTEXT)),
+                KeyBinding::new("down", nav::Down, Some(nav::GROUP_CONTEXT)),
+                KeyBinding::new("left", nav::Left, Some(nav::GROUP_CONTEXT)),
+                KeyBinding::new("right", nav::Right, Some(nav::GROUP_CONTEXT)),
+                KeyBinding::new("enter", NoAction, Some(nav::GROUP_CONTEXT)),
+                KeyBinding::new("p", nav::Play, Some(nav::SHEET_CONTEXT)),
+                KeyBinding::new("s", nav::Scrape, Some(nav::SHEET_CONTEXT)),
+                KeyBinding::new("x", nav::Remove, Some(nav::SHEET_CONTEXT)),
+                KeyBinding::new("backspace", dialog::Cancel, Some("Sheet")),
+                KeyBinding::new("down", nav::Leave, Some(ADD_SYSTEM_SEARCH)),
+                KeyBinding::new("enter", nav::Leave, Some(ADD_SYSTEM_SEARCH)),
+                KeyBinding::new("backspace", nav::Back, Some(ADD_SYSTEM_SEARCH)),
             ]);
             cx.on_action(|_: &ui::Quit, cx| ui::request_quit(cx));
 
@@ -89,7 +124,14 @@ fn main() {
                 if options.fullscreen {
                     window.toggle_fullscreen();
                 }
-                cx.new(|cx| ui::RootView::new(window, cx))
+                cx.new(|cx| {
+                    let mut view = ui::RootView::new(window, cx);
+                    // No mouse is expected in fullscreen, so show where the keys are.
+                    if options.fullscreen {
+                        view.show_focus();
+                    }
+                    view
+                })
             })
             .expect("failed to open window");
 
