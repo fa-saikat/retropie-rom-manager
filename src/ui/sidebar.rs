@@ -207,7 +207,7 @@ impl AddRow {
 }
 
 impl RootView {
-    pub(super) fn render_sidebar(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    pub(super) fn render_sidebar(&self, fullscreen: bool, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.theme();
         let is_dark = t.is_dark();
 
@@ -285,11 +285,13 @@ impl RootView {
         let footer = v_flex()
             .w_full()
             .gap_0p5()
-            .child(
-                footer_row("open-roms", Icon::new(IconName::FolderOpen), "ROMs folder", cx)
-                    .tooltip(|window, cx| Tooltip::new("Open ~/RetroPie/roms").build(window, cx))
-                    .on_click(cx.listener(move |this, _, _, cx| this.open_folder(roms_root.clone(), cx))),
-            )
+            .when(!fullscreen, |footer| {
+                footer.child(
+                    footer_row("open-roms", Icon::new(IconName::FolderOpen), "ROMs folder", cx)
+                        .tooltip(|window, cx| Tooltip::new("Open ~/RetroPie/roms").build(window, cx))
+                        .on_click(cx.listener(move |this, _, _, cx| this.open_folder(roms_root.clone(), cx))),
+                )
+            })
             .child(
                 footer_row("about", Icon::new(IconName::Info), "About", cx)
                     .on_click(cx.listener(|this, _, window, cx| details::open_about(this, window, cx))),

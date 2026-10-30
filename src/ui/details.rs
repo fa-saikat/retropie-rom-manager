@@ -80,11 +80,11 @@ pub(super) fn open_details(view: &mut RootView, entry: &GameEntry, window: &mut 
     };
     let snapshot = Snapshot { move_adds: snapshot.misplaced.is_some_and(|to| !view.is_enabled(to)), ..snapshot };
     let this = cx.entity().downgrade();
-    window.open_sheet(cx, move |sheet, _, cx| {
+    window.open_sheet(cx, move |sheet, window, cx| {
         sheet
             .size(px(440.))
             .child(render_body(&snapshot, cx))
-            .footer(render_footer(&snapshot, this.clone()))
+            .footer(render_footer(&snapshot, window.is_fullscreen(), this.clone()))
     });
 }
 
@@ -350,7 +350,8 @@ fn render_media(s: &Snapshot, cx: &App) -> impl IntoElement {
     }))
 }
 
-fn render_footer(s: &Snapshot, this: WeakEntity<RootView>) -> impl IntoElement {
+/// No folder button in fullscreen: the file manager would open behind the app.
+fn render_footer(s: &Snapshot, fullscreen: bool, this: WeakEntity<RootView>) -> impl IntoElement {
     let folder = library::roms_root().join(s.system.folder);
     let scrape_entry = s.entry.clone();
     let delete_entry = s.entry.clone();
@@ -367,17 +368,19 @@ fn render_footer(s: &Snapshot, this: WeakEntity<RootView>) -> impl IntoElement {
     h_flex()
         .w_full()
         .gap_2()
-        .child(
-            Button::new("sheet-folder")
-                .ghost()
-                .small()
-                .icon(Icon::new(IconName::FolderOpen))
-                .tooltip("Show in folder")
-                .on_click(move |_, _, cx| {
-                    let _ = std::fs::create_dir_all(&folder);
-                    cx.open_with_system(&folder);
-                }),
-        )
+        .when(!fullscreen, |footer| {
+            footer.child(
+                Button::new("sheet-folder")
+                    .ghost()
+                    .small()
+                    .icon(Icon::new(IconName::FolderOpen))
+                    .tooltip("Show in folder")
+                    .on_click(move |_, _, cx| {
+                        let _ = std::fs::create_dir_all(&folder);
+                        cx.open_with_system(&folder);
+                    }),
+            )
+        })
         .child(div().flex_1())
         // Scraping as the wrong system would only fetch the wrong game.
         .when(s.misplaced.is_none(), |footer| footer.child(
