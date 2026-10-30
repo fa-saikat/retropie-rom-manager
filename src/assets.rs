@@ -22,7 +22,8 @@ use std::path::PathBuf;
 // ones this app uses. Unlisted names fall through to the default bundle.
 gpui_kit::assets::icon_assets!(ExtraIcons, [
     Trash, LayoutGrid, List, ImageDown, ImageOff, Gamepad2, Upload, X, VideoOff, Files, Download,
-    FolderInput, TriangleAlert, ArrowRight, Play,
+    FolderInput, TriangleAlert, ArrowRight, Play, Folder, File, HardDrive, House, ArrowUp,
+    ChevronRight, AppWindow, Maximize,
 ]);
 
 /// Tabler icons the UI needs, embedded so a missing `assets/` folder can't
