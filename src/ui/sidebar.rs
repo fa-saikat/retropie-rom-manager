@@ -314,7 +314,7 @@ impl RootView {
                 Button::new("quit")
                     .ghost()
                     .small()
-                    .icon(Icon::new(IconName::Power))
+                    .icon(Icon::empty().path(assets::QUIT_ICON))
                     .tooltip("Quit (Ctrl+Q)")
                     .on_click(cx.listener(|this, _, window, cx| this.request_quit(window, cx))),
             );

@@ -22,14 +22,21 @@ use std::path::PathBuf;
 // ones this app uses. Unlisted names fall through to the default bundle.
 gpui_kit::assets::icon_assets!(ExtraIcons, [
     Trash, LayoutGrid, List, ImageDown, ImageOff, Gamepad2, Upload, X, VideoOff, Files, Download,
-    FolderInput, TriangleAlert, ArrowRight, Play, Power,
+    FolderInput, TriangleAlert, ArrowRight, Play,
 ]);
+
+/// Tabler icons the UI needs, embedded so a missing `assets/` folder can't
+/// blank a button. Use with `Icon::empty().path(QUIT_ICON)`.
+pub const QUIT_ICON: &str = "icons/door-exit.svg";
 
 /// The app's asset source: our extra icons first, then GPUI Kit's defaults.
 pub struct AppAssets;
 
 impl AssetSource for AppAssets {
     fn load(&self, path: &str) -> Result<Option<Cow<'static, [u8]>>> {
+        if path == QUIT_ICON {
+            return Ok(Some(Cow::Borrowed(include_bytes!("../assets/icons/door-exit.svg"))));
+        }
         if let Some(bytes) = ExtraIcons.load(path)? {
             return Ok(Some(bytes));
         }
