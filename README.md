@@ -126,7 +126,7 @@ The file picker goes through the XDG desktop portal (`xdg-desktop-portal` plus a
 
 The UI is built with [GPUI Kit](https://gpui-kit.com) on top of [GPUI](https://www.gpui.rs), the framework behind the Zed editor. Detection, grouping, scraping and launching have no UI dependency and are covered by `cargo test`.
 
-To build the Debian package, run `./scripts/build-deb.sh` (it needs [`cargo-deb`](https://github.com/kornelski/cargo-deb)). After bumping the version in `Cargo.toml`, `./scripts/generate-changelog.sh` adds the changelog entry.
+To build the Debian package yourself, install [`cargo-deb`](https://github.com/kornelski/cargo-deb) and run `cargo deb`. The package lands in `target/debian/`. Release packages are built and tested by CI.
 
 <details>
 <summary>Debug-build environment variables</summary>

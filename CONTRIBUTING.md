@@ -22,9 +22,9 @@ sudo apt install libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
 Then:
 
 ```sh
-cargo run            # debug build
-cargo test           # detection, grouping, scraping and launching
-./scripts/build-deb.sh   # .deb in target/debian/, needs cargo-deb
+cargo run      # debug build
+cargo test     # detection, grouping, scraping and launching
+cargo deb      # .deb in target/debian/, needs `cargo install cargo-deb`
 ```
 
 If rustc crashes with a stack overflow while compiling `gpui-component`, set `RUST_MIN_STACK=16777216`. CI sets it too.
@@ -41,7 +41,7 @@ Debug builds read a few `ROM_MANAGER_*` environment variables that open the app 
 - Update the README if you change behavior, requirements or known limitations.
 - Don't bump the version or edit `packaging/changelog`. That happens in a release PR.
 
-CI builds the amd64 and arm64 `.deb` packages for every pull request. You can download them from the run's artifacts to test on real hardware.
+CI builds the amd64 and arm64 `.deb` packages for every pull request, then installs and removes them on Debian 12, Debian 13, Ubuntu 22.04 and Ubuntu 24.04 to check that their dependencies resolve. You can download the packages from the run's artifacts to test on real hardware.
 
 ## Versioning
 
@@ -57,7 +57,7 @@ Some rules that keep the version history clean:
 
 - **Versions only go up.** CI refuses to release a version lower than the latest tag.
 - **Every release gets a new version, including packaging-only fixes.** The Debian revision always stays `-1`, so a fixed `2.1.0` package ships as `2.1.1-1`, not `2.1.0-2`.
-- **Tags are created by CI and never moved or reused.** A release is the tag `vX.Y.Z` on main, built and published by the release workflow. Don't tag by hand.
+- **Tags come from publishing a release and are never moved or reused.** A release is the tag `vX.Y.Z` on main. CI drafts it, and publishing the draft creates the tag. Don't tag by hand.
 - **There are no pre-release versions.** Builds for testing come from pull request artifacts.
 
 ## Releasing
@@ -66,10 +66,19 @@ Maintainers only.
 
 1. Branch `release/X.Y.Z` from an up-to-date `main`.
 2. Set `version` in `Cargo.toml`, and run `cargo check` so `Cargo.lock` picks it up.
-3. Run `./scripts/generate-changelog.sh`. It fetches tags and prepends an entry built from commit subjects since the last release.
-4. Rewrite that entry for users: what changed for them, not how. These bullets become the GitHub release notes.
-5. Commit as `release: bump to X.Y.Z` and open a pull request titled `release: X.Y.Z`.
-6. Merge once CI is green. The release workflow tags `vX.Y.Z` and publishes both `.deb` files with `SHA256SUMS`.
+3. Add an entry at the top of `packaging/changelog`, in the same format as the ones below it. Write it for users: what changed for them, not how. The date line comes from `date -R`.
+
+   ```
+   retropie-rom-manager (X.Y.Z-1) unstable; urgency=low
+
+     * What changed, in a sentence.
+
+    -- Your Name <you@example.com>  Fri, 30 Oct 2026 12:00:00 +0600
+   ```
+
+4. Commit as `release: bump to X.Y.Z` and open a pull request titled `release: X.Y.Z`. CI checks that the version goes up and that the changelog entry matches it.
+5. Merge once CI is green. The release workflow builds and test-installs both `.deb` files, then creates a draft release `vX.Y.Z` with them, `SHA256SUMS`, the changelog bullets and install commands.
+6. Check the draft on the Releases page, edit the notes if you like, and publish it. Publishing creates the `vX.Y.Z` tag.
 
 ## Code of conduct
 
