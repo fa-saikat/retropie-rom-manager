@@ -9,6 +9,7 @@ use gpui_kit::assets::IconName;
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::sidebar::{Sidebar, SidebarItem};
 use gpui_kit::component::tag::Tag;
+use gpui_kit::component::tooltip::Tooltip;
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Collapsible, Icon, Sizable, StyledExt};
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
@@ -281,35 +282,29 @@ impl RootView {
         }
 
         let roms_root = crate::library::roms_root();
-        let footer = h_flex()
+        let footer = v_flex()
             .w_full()
-            .gap_1()
+            .gap_0p5()
             .child(
-                Button::new("open-roms")
-                    .ghost()
-                    .small()
-                    .icon(Icon::new(IconName::FolderOpen))
-                    .label("Folder")
-                    .tooltip("Open ~/RetroPie/roms")
+                footer_row("open-roms", Icon::new(IconName::FolderOpen), "ROMs folder", cx)
+                    .tooltip(|window, cx| Tooltip::new("Open ~/RetroPie/roms").build(window, cx))
                     .on_click(cx.listener(move |this, _, _, cx| this.open_folder(roms_root.clone(), cx))),
             )
             .child(
-                Button::new("about")
-                    .ghost()
-                    .small()
-                    .icon(Icon::new(IconName::Info))
-                    .label("About")
+                footer_row("about", Icon::new(IconName::Info), "About", cx)
                     .on_click(cx.listener(|this, _, window, cx| details::open_about(this, window, cx))),
             )
-            .child(div().flex_1())
             .child(
-                Button::new("theme")
-                    .ghost()
-                    .small()
-                    .icon(Icon::new(if is_dark { IconName::Moon } else { IconName::Sun }))
-                    .tooltip(if is_dark { "Switch to light" } else { "Switch to dark" })
-                    .on_click(cx.listener(|this, _, window, cx| this.toggle_theme(window, cx))),
-            );
+                footer_row(
+                    "theme",
+                    Icon::new(if is_dark { IconName::Sun } else { IconName::Moon }),
+                    if is_dark { "Light mode" } else { "Dark mode" },
+                    cx,
+                )
+                .on_click(cx.listener(|this, _, window, cx| this.toggle_theme(window, cx))),
+            )
+            .child(div().my_1().h(px(1.)).bg(cx.theme().sidebar_border))
+            .child(quit_row(cx).on_click(cx.listener(|this, _, window, cx| this.request_quit(window, cx))));
 
         Sidebar::new("systems")
             .w(px(240.))
@@ -318,4 +313,44 @@ impl RootView {
             .children(rows)
             .footer(footer)
     }
+}
+
+/// One action in the sidebar footer: icon and label, like the system rows.
+fn footer_row(id: &'static str, icon: Icon, label: &'static str, cx: &App) -> Stateful<Div> {
+    let t = cx.theme();
+    h_flex()
+        .id(id)
+        .h(px(32.))
+        .px_2()
+        .gap_2p5()
+        .rounded(t.radius)
+        .text_sm()
+        .cursor_pointer()
+        .text_color(t.sidebar_foreground.opacity(0.8))
+        .hover(|s| s.bg(t.sidebar_accent).text_color(t.sidebar_accent_foreground))
+        .child(icon.with_size(px(16.)))
+        .child(div().flex_1().min_w_0().truncate().child(label))
+}
+
+/// Quit sits apart at the bottom, bordered like the header buttons, and
+/// turns soft red on hover.
+fn quit_row(cx: &App) -> Stateful<Div> {
+    let t = cx.theme();
+    let danger = t.danger;
+    h_flex()
+        .id("quit")
+        .h(px(36.))
+        .px_2()
+        .gap_2p5()
+        .rounded(t.radius)
+        .border_1()
+        .border_color(t.border)
+        .text_sm()
+        .font_medium()
+        .cursor_pointer()
+        .text_color(t.sidebar_foreground)
+        .hover(move |s| s.bg(danger.opacity(0.1)).border_color(danger.opacity(0.4)).text_color(danger))
+        .child(Icon::empty().path(assets::QUIT_ICON).with_size(px(16.)))
+        .child(div().flex_1().child("Quit"))
+        .child(div().text_xs().text_color(t.muted_foreground).child("Ctrl+Q"))
 }

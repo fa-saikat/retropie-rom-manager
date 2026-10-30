@@ -4,4 +4,4 @@ mod root;
 pub mod scale;
 mod sidebar;
 
-pub use root::{FocusSearch, RootView, KEY_CONTEXT};
+pub use root::{request_quit, FocusSearch, Quit, RootView, KEY_CONTEXT};

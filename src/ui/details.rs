@@ -8,7 +8,7 @@
 use gpui_kit::assets::IconName;
 use gpui_kit::component::button::{Button, ButtonVariant, ButtonVariants};
 use gpui_kit::component::description_list::DescriptionList;
-use gpui_kit::component::dialog::AlertDialog;
+use gpui_kit::component::dialog::{AlertDialog, DialogFooter};
 use gpui_kit::component::input::{Input, InputState};
 use gpui_kit::component::rating::Rating;
 use gpui_kit::component::tag::Tag;
@@ -911,6 +911,64 @@ pub(super) fn confirm_remove_system(
                 this.update(cx, |view, cx| view.remove_system(system, window, cx)).ok();
                 true
             })
+    });
+}
+
+/// Quitting always asks, and lists anything quitting would interrupt. The
+/// footer is our own: the kit binds Enter to a dialog's OK button, and a
+/// stray Enter (a gamepad's A button, say) mustn't quit. With this footer,
+/// Enter, Esc and Backspace all just close the dialog.
+pub(super) fn confirm_quit(view: &RootView, window: &mut Window, cx: &mut Context<RootView>) {
+    let mut busy = Vec::new();
+    if let Some(game) = &view.running {
+        busy.push(format!("{} is still running. It keeps running after ROM Manager closes.", game.title));
+    }
+    if let Some(job) = &view.scrape {
+        busy.push(format!(
+            "Scraping {} stops, with {} of {} games done. The rest stay without artwork.",
+            job.system.display_name, job.done, job.total
+        ));
+    }
+    if view.setup.is_some() {
+        busy.push("Skyscraper is still being installed. Stopping RetroPie-Setup now can leave it half-installed.".to_string());
+    }
+    if view.installing > 0 {
+        busy.push("ROMs are still being copied. Quitting now can leave incomplete files in ~/RetroPie/roms.".to_string());
+    }
+    let this = cx.entity().downgrade();
+    window.open_alert_dialog(cx, move |alert: AlertDialog, _, cx| {
+        let t = cx.theme();
+        let (closed, cancelled) = (this.clone(), this.clone());
+        alert
+            .width(px(DIALOG_WIDTH))
+            .p(px(DIALOG_PADDING))
+            .title("Quit ROM Manager?")
+            .when(!busy.is_empty(), |alert| {
+                alert.child(
+                    v_flex()
+                        .gap_2()
+                        .text_sm()
+                        .text_color(t.muted_foreground)
+                        .children(busy.iter().map(|line| div().child(line.clone()))),
+                )
+            })
+            .on_close(move |_, _, cx| {
+                closed.update(cx, |view, _| view.quit_open = false).ok();
+            })
+            .footer(
+                DialogFooter::new()
+                    // `close_dialog` skips `on_close`, so clear the flag here too.
+                    .child(Button::new("quit-cancel").label("Cancel").on_click(move |_, window, cx| {
+                        cancelled.update(cx, |view, _| view.quit_open = false).ok();
+                        window.close_dialog(cx);
+                    }))
+                    .child(
+                        Button::new("quit-confirm")
+                            .label("Quit")
+                            .with_variant(if busy.is_empty() { ButtonVariant::Primary } else { ButtonVariant::Danger })
+                            .on_click(|_, _, cx| cx.quit()),
+                    ),
+            )
     });
 }
 
