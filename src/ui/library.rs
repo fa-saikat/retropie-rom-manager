@@ -19,6 +19,7 @@ use gpui_kit::*;
 
 use super::details;
 use super::root::{RootView, ViewMode};
+use super::scale::px;
 use super::sidebar::{system_glyph, system_tile};
 use crate::library::GameEntry;
 use crate::scraper::ScrapeStatus;
@@ -482,8 +483,9 @@ impl RootView {
     }
 
     fn render_grid(&self, games: &[&GameEntry], window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        // As many ≥196px columns as fit next to the sidebar.
-        let available = window.viewport_size().width.as_f32() - SIDEBAR_WIDTH - 2. * CONTENT_PADDING;
+        // As many ≥196px columns as fit next to the sidebar, in 1080p pixels.
+        let width = window.viewport_size().width.as_f32() / super::scale::factor();
+        let available = width - SIDEBAR_WIDTH - 2. * CONTENT_PADDING;
         let columns = ((available + GRID_GAP) / (CARD_MIN_WIDTH + GRID_GAP)).floor().max(1.) as u16;
 
         div()

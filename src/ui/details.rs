@@ -18,6 +18,7 @@ use gpui_kit::*;
 use std::path::PathBuf;
 
 use super::root::RootView;
+use super::scale::px;
 use super::sidebar::{system_glyph, system_tile};
 use crate::assets;
 use crate::detect;
@@ -25,6 +26,11 @@ use crate::library::{self, GameEntry};
 use crate::scraper::{self, GameMeta, MediaState, ScrapeStatus};
 use crate::systems::{SystemDef, MAKERS, SYSTEMS};
 use crate::theme;
+
+// GPUI Kit's dialog width and padding are fixed pixels. Restating them in
+// our scaled `px` makes dialogs grow with the rest of the UI.
+const DIALOG_WIDTH: f32 = 448.;
+const DIALOG_PADDING: f32 = 16.;
 
 /// Owned copy of everything the sheet shows.
 #[derive(Clone)]
@@ -457,6 +463,8 @@ pub(super) fn confirm_delete_dialog(
         let this = this.clone();
         let entry = entry.clone();
         alert
+            .width(px(DIALOG_WIDTH))
+            .p(px(DIALOG_PADDING))
             .confirm()
             .title(format!("Delete {title}?"))
             .description(format!(
@@ -574,6 +582,7 @@ pub(super) fn confirm_wrong_system(
         dialog
             .title(title.clone())
             .w(px(480.))
+            .p(px(DIALOG_PADDING))
             .child(
                 v_flex()
                     .gap_3()
@@ -628,6 +637,8 @@ pub(super) fn confirm_move_misplaced(view: &mut RootView, window: &mut Window, c
         let n = games.len();
         let this = this.clone();
         alert
+            .width(px(DIALOG_WIDTH))
+            .p(px(DIALOG_PADDING))
             .confirm()
             .title(format!("Move {n} {}?", if n == 1 { "game" } else { "games" }))
             .description(description.clone())
@@ -734,6 +745,7 @@ pub(super) fn open_add_system(view: &mut RootView, window: &mut Window, cx: &mut
         dialog
             .title("Add an emulator")
             .w(px(760.))
+            .p(px(DIALOG_PADDING))
             .child(
                 v_flex()
                     .gap_4()
@@ -887,6 +899,8 @@ pub(super) fn confirm_remove_system(
             )
         };
         alert
+            .width(px(DIALOG_WIDTH))
+            .p(px(DIALOG_PADDING))
             .confirm()
             .title(format!("Remove {}?", system.display_name))
             .description(description)
@@ -905,6 +919,8 @@ pub(super) fn confirm_install_skyscraper(window: &mut Window, cx: &mut Context<R
     window.open_alert_dialog(cx, move |alert: AlertDialog, _, _| {
         let this = this.clone();
         alert
+            .width(px(DIALOG_WIDTH))
+            .p(px(DIALOG_PADDING))
             .confirm()
             .title("Install Skyscraper?")
             .description(
@@ -933,6 +949,7 @@ pub(super) fn open_about(view: &mut RootView, window: &mut Window, cx: &mut Cont
         dialog
             .title("RetroPie ROM Manager")
             .w(px(420.))
+            .p(px(DIALOG_PADDING))
             .child(
                 v_flex()
                     .gap_4()

@@ -16,6 +16,7 @@ use std::rc::Rc;
 
 use super::details;
 use super::root::RootView;
+use super::scale::px;
 use crate::assets;
 use crate::systems::{self, SystemDef};
 use crate::theme;
