@@ -82,7 +82,7 @@ impl RootView {
                     v_flex()
                         .p(px(CONTENT_PADDING))
                         .gap_5()
-                        .child(self.render_header(cx))
+                        .child(self.render_header(window.is_fullscreen(), cx))
                         .children(self.render_notice(cx))
                         .child(self.render_toolbar(cx))
                         .child(self.render_library(window, cx)),
@@ -90,7 +90,7 @@ impl RootView {
             )
     }
 
-    fn render_header(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_header(&self, fullscreen: bool, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.theme();
         let system = self.selected;
         let file_count: usize = self.games.iter().map(|g| g.files.len()).sum();
@@ -123,6 +123,7 @@ impl RootView {
                 .child(Progress::new("scrape-progress").value(job.done as f32 / job.total as f32 * 100.))
         });
 
+        let folder = self.system_folder();
         h_flex()
             .gap_4()
             .items_start()
@@ -144,6 +145,15 @@ impl RootView {
             .child(
                 h_flex()
                     .gap_2()
+                    .when(!fullscreen, |buttons| {
+                        buttons.child(
+                            Button::new("open-system-folder")
+                                .outline()
+                                .icon(Icon::new(IconName::FolderOpen))
+                                .tooltip("Open in file manager")
+                                .on_click(cx.listener(move |this, _, _, cx| this.open_folder(folder.clone(), cx))),
+                        )
+                    })
                     .child(
                         Button::new("scrape-all")
                             .outline()

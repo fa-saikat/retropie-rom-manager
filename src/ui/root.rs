@@ -376,6 +376,17 @@ impl RootView {
         cx.notify();
     }
 
+    /// Folder buttons open the desktop's file manager. In fullscreen it
+    /// would open behind the app, so they're hidden there (#41).
+    pub(super) fn open_folder(&self, folder: PathBuf, cx: &mut App) {
+        let _ = std::fs::create_dir_all(&folder);
+        cx.open_with_system(&folder);
+    }
+
+    pub(super) fn system_folder(&self) -> PathBuf {
+        library::roms_root().join(self.selected.folder)
+    }
+
     // -----------------------------------------------------------------------
     // Install
     // -----------------------------------------------------------------------
@@ -925,7 +936,7 @@ impl Render for RootView {
             .flex_row()
             .bg(cx.theme().background)
             .text_color(cx.theme().foreground)
-            .child(self.render_sidebar(cx))
+            .child(self.render_sidebar(window.is_fullscreen(), cx))
             .child(self.render_main(window, cx))
     }
 }
