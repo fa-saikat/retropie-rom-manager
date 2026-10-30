@@ -3,7 +3,7 @@ name = "retropie-rom-manager"
 version = "2.1.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/fa-saikat/retropie-rom-installer"
+repository = "https://github.com/fa-saikat/retropie-rom-manager"
 description = "A desktop ROM manager for RetroPie: install, scrape, play and remove ROMs for 37 systems"
 
 [dependencies]
