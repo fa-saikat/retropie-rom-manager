@@ -22,7 +22,7 @@ use crate::theme;
 
 pub const KEY_CONTEXT: &str = "RomManager";
 
-gpui_kit::actions!(rom_manager, [FocusSearch, ToggleFullscreen]);
+gpui_kit::actions!(rom_manager, [FocusSearch]);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewMode {

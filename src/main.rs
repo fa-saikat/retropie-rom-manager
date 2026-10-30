@@ -47,19 +47,7 @@ fn main() {
             scale::apply_to_theme(cx);
             // We keep the native title bar, so sheets can use the full height.
             Theme::update(cx, |t| t.sheet.margin_top = px(0.));
-            cx.bind_keys([
-                KeyBinding::new("/", ui::FocusSearch, Some(ui::KEY_CONTEXT)),
-                // App-wide, so it also works while a dialog has focus.
-                KeyBinding::new("f11", ui::ToggleFullscreen, None),
-            ]);
-            cx.on_action(|_: &ui::ToggleFullscreen, cx| {
-                // The window is busy dispatching this key, so toggle once it's done.
-                if let Some(window) = cx.active_window() {
-                    cx.defer(move |cx| {
-                        window.update(cx, |_, window, _| window.toggle_fullscreen()).ok();
-                    });
-                }
-            });
+            cx.bind_keys([KeyBinding::new("/", ui::FocusSearch, Some(ui::KEY_CONTEXT))]);
 
             // Below this the sidebar + card grid start wrapping badly.
             let min_size = scale::fit_display(size(px(1024.), px(680.)), 1., cx);
@@ -81,8 +69,8 @@ fn main() {
             };
             gpui_kit::open_window(window_options, cx, move |window, cx| {
                 // Opening with fullscreen bounds isn't honoured on X11, so
-                // ask the window manager once the window exists. Leaving
-                // fullscreen returns to the centered window above.
+                // ask the window manager once the window exists. The app
+                // offers no way to toggle it afterwards.
                 if options.fullscreen {
                     window.toggle_fullscreen();
                 }

@@ -73,7 +73,7 @@ The arm64 build is new. If it doesn't start on your board, please [open an issue
 
 | Option | Effect |
 |---|---|
-| `--fullscreen` | Start in fullscreen, e.g. on a TV. **F11** toggles fullscreen at any time. Also available as **Open in Fullscreen** when you right-click the launcher. |
+| `--fullscreen` | Run in fullscreen, e.g. on a TV. Fullscreen comes only from this option, so there's no key to switch it on or off. Also available as **Open in Fullscreen** when you right-click the launcher. |
 | `--theme light\|dark` | Start in the light or dark theme |
 | `-h`, `--help` | Print the options and exit |
 | `-V`, `--version` | Print the version and exit |

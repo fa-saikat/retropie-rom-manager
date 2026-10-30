@@ -48,7 +48,7 @@ pub fn help() -> String {
 {USAGE}
 
 Options:
-      --fullscreen     Start in fullscreen. F11 toggles it while running.
+      --fullscreen     Run in fullscreen
       --theme <THEME>  Start in the light or dark theme [values: light, dark]
   -h, --help           Print this help and exit
   -V, --version        Print the version and exit"
