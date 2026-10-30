@@ -1,6 +1,6 @@
 # RetroPie ROM Manager
 
-[![Latest release](https://img.shields.io/github/v/release/fa-saikat/retropie-rom-installer)](https://github.com/fa-saikat/retropie-rom-installer/releases/latest)
+[![Latest release](https://img.shields.io/github/v/release/fa-saikat/retropie-rom-manager)](https://github.com/fa-saikat/retropie-rom-manager/releases/latest)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 ![Linux](https://img.shields.io/badge/platform-Linux-informational)
 ![Built with Rust](https://img.shields.io/badge/built%20with-Rust-orange)
@@ -56,7 +56,7 @@ The RetroPie SD-card images aren't supported: they boot straight into EmulationS
 
 ## Install
 
-Download the `.deb` for your architecture from the [latest release](https://github.com/fa-saikat/retropie-rom-installer/releases/latest) and install it:
+Download the `.deb` for your architecture from the [latest release](https://github.com/fa-saikat/retropie-rom-manager/releases/latest) and install it:
 
 ```sh
 sudo apt install ./retropie-rom-manager_*_amd64.deb   # PC
@@ -67,7 +67,7 @@ Then launch **ROM Manager** from your app menu, or run `retropie-rom-manager`.
 
 On displays taller than 1080p, such as 1440p or 4K, the UI scales up so it looks the same as on a 1080p screen. If you'd like it bigger or smaller, set the scale yourself, e.g. `ROM_MANAGER_SCALE=1.5 retropie-rom-manager`.
 
-The arm64 build is new. If it doesn't start on your board, please [open an issue](https://github.com/fa-saikat/retropie-rom-installer/issues) with the board, OS and the terminal output.
+The arm64 build is new. If it doesn't start on your board, please [open an issue](https://github.com/fa-saikat/retropie-rom-manager/issues) with the board, OS and the terminal output.
 
 ## How it works
 
