@@ -10,7 +10,7 @@ mod systems;
 mod theme;
 mod ui;
 
-use gpui_kit::component::{Theme, ThemeMode};
+use gpui_kit::component::{dialog, Theme, ThemeMode};
 use gpui_kit::{size, AppContext, Bounds, KeyBinding, Size, TitlebarOptions, WindowBounds, WindowOptions};
 use ui::scale::{self, px};
 
@@ -47,7 +47,14 @@ fn main() {
             scale::apply_to_theme(cx);
             // We keep the native title bar, so sheets can use the full height.
             Theme::update(cx, |t| t.sheet.margin_top = px(0.));
-            cx.bind_keys([KeyBinding::new("/", ui::FocusSearch, Some(ui::KEY_CONTEXT))]);
+            cx.bind_keys([
+                KeyBinding::new("/", ui::FocusSearch, Some(ui::KEY_CONTEXT)),
+                KeyBinding::new("ctrl-q", ui::Quit, None),
+                // Gamepads mapped to keys often have Backspace but no Esc, so
+                // it closes dialogs too. Text fields still get it first.
+                KeyBinding::new("backspace", dialog::Cancel, Some("Dialog")),
+            ]);
+            cx.on_action(|_: &ui::Quit, cx| ui::request_quit(cx));
 
             // Below this the sidebar + card grid start wrapping badly.
             let min_size = scale::fit_display(size(px(1024.), px(680.)), 1., cx);

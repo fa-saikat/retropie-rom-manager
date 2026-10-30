@@ -309,6 +309,14 @@ impl RootView {
                     .icon(Icon::new(if is_dark { IconName::Moon } else { IconName::Sun }))
                     .tooltip(if is_dark { "Switch to light" } else { "Switch to dark" })
                     .on_click(cx.listener(|this, _, window, cx| this.toggle_theme(window, cx))),
+            )
+            .child(
+                Button::new("quit")
+                    .ghost()
+                    .small()
+                    .icon(Icon::new(IconName::Power))
+                    .tooltip("Quit (Ctrl+Q)")
+                    .on_click(cx.listener(|this, _, window, cx| this.request_quit(window, cx))),
             );
 
         Sidebar::new("systems")

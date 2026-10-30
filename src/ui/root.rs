@@ -22,7 +22,23 @@ use crate::theme;
 
 pub const KEY_CONTEXT: &str = "RomManager";
 
-gpui_kit::actions!(rom_manager, [FocusSearch]);
+gpui_kit::actions!(rom_manager, [FocusSearch, Quit]);
+
+/// The view Ctrl+Q asks to quit, so the shortcut works from anywhere,
+/// including while a dialog has focus.
+struct QuitTarget(WeakEntity<RootView>);
+
+impl Global for QuitTarget {}
+
+/// Ask to quit, as if the Quit button had been pressed.
+pub fn request_quit(cx: &mut App) {
+    let Some(view) = cx.try_global::<QuitTarget>().map(|t| t.0.clone()) else { return };
+    let Some(window) = cx.active_window() else { return };
+    // The window is busy dispatching the key, so open the dialog once it's done.
+    cx.defer(move |cx| {
+        window.update(cx, |_, window, cx| view.update(cx, |view, cx| view.request_quit(window, cx))).ok();
+    });
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewMode {
@@ -82,6 +98,10 @@ pub struct RootView {
     pub(super) search: Entity<InputState>,
     pub(super) query: String,
     pub(super) scrape: Option<ScrapeJob>,
+    /// Batches of ROMs still being copied or extracted.
+    pub(super) installing: usize,
+    /// The quit confirmation is showing, so another request doesn't stack a second one.
+    pub(super) quit_open: bool,
     /// Games across every listed system that belong somewhere else.
     /// Filled in the background.
     pub(super) misplaced: Vec<Misplaced>,
@@ -128,12 +148,20 @@ impl RootView {
             search,
             query: String::new(),
             scrape: None,
+            installing: 0,
+            quit_open: false,
             misplaced: Vec::new(),
             detect_cache: Arc::default(),
             audit_generation: 0,
             focus_handle,
             _subscriptions: vec![subscription],
         };
+        cx.set_global(QuitTarget(cx.entity().downgrade()));
+        // Closing the window (its close button, Alt+F4) asks first too.
+        let this = cx.entity().downgrade();
+        window.on_window_should_close(cx, move |window, cx| {
+            this.update(cx, |view, cx| view.request_quit(window, cx)).is_err()
+        });
         view.refresh(cx);
         // Otherwise open on the first listed system that has something in it.
         let first_with_games = view.enabled.iter().find(|s| view.counts.get(s.id).is_some_and(|n| *n > 0));
@@ -151,7 +179,7 @@ impl RootView {
     /// screenshots don't need clicking around.
     /// `ROM_MANAGER_VIEW=list`,
     /// `ROM_MANAGER_OPEN=<card index>` (details sheet),
-    /// `ROM_MANAGER_DIALOG=delete|about|install-skyscraper|add-system|remove-system|move`,
+    /// `ROM_MANAGER_DIALOG=delete|about|quit|install-skyscraper|add-system|remove-system|move`,
     /// `ROM_MANAGER_RUN=install-skyscraper|scrape` (start it right away),
     /// `ROM_MANAGER_INSTALL=<file>` (as if it were dropped on the window).
     #[cfg(debug_assertions)]
@@ -169,6 +197,7 @@ impl RootView {
         }
         match var("ROM_MANAGER_DIALOG").as_deref() {
             Some("about") => super::details::open_about(self, window, cx),
+            Some("quit") => self.request_quit(window, cx),
             Some("install-skyscraper") => super::details::confirm_install_skyscraper(window, cx),
             // After the first audit, so suggestions show.
             Some("add-system") => cx
@@ -328,6 +357,15 @@ impl RootView {
         self.search.update(cx, |s, cx| s.focus(window, cx));
     }
 
+    /// Quitting always asks first, saying what's still in progress.
+    pub(super) fn request_quit(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.quit_open {
+            return;
+        }
+        self.quit_open = true;
+        super::details::confirm_quit(self, window, cx);
+    }
+
     pub(super) fn set_view_mode(&mut self, mode: ViewMode, cx: &mut Context<Self>) {
         self.view_mode = mode;
         cx.notify();
@@ -434,6 +472,7 @@ impl RootView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.installing += 1;
         cx.spawn_in(window, async move |this, cx| {
             let results = cx
                 .background_spawn(async move {
@@ -447,6 +486,7 @@ impl RootView {
                 .await;
 
             this.update_in(cx, |this, window, cx| {
+                this.installing -= 1;
                 let selected = this.selected;
                 let mut installed = Vec::new();
                 for (path, system, result) in results {

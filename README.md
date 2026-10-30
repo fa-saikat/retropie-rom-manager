@@ -78,6 +78,8 @@ The arm64 build is new. If it doesn't start on your board, please [open an issue
 | `-h`, `--help` | Print the options and exit |
 | `-V`, `--version` | Print the version and exit |
 
+To quit, press **Ctrl+Q** or the power button at the bottom of the sidebar. The app asks first, and says if anything is still in progress.
+
 ## How it works
 
 ### Recognising the system
@@ -149,7 +151,7 @@ Debug builds can open straight into a given state, which helps with screenshots 
 | `ROM_MANAGER_SYSTEM=<id>` | Open on a system, e.g. `psx` |
 | `ROM_MANAGER_VIEW=list` | Start in list view |
 | `ROM_MANAGER_OPEN=<index>` | Open the details panel for that card |
-| `ROM_MANAGER_DIALOG=…` | `delete`, `about`, `install-skyscraper`, `add-system`, `remove-system` or `move` |
+| `ROM_MANAGER_DIALOG=…` | `delete`, `about`, `quit`, `install-skyscraper`, `add-system`, `remove-system` or `move` |
 | `ROM_MANAGER_RUN=…` | Start `install-skyscraper` or `scrape` right away |
 | `ROM_MANAGER_INSTALL=<file>` | Act as if the file was dropped on the window |
 | `ROM_MANAGER_CONFIGS=<dir>` | Read emulator configs from a stand-in for `/opt/retropie/configs` |
