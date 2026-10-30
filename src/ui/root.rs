@@ -5,6 +5,7 @@
 use gpui_kit::component::input::{InputEvent, InputState};
 use gpui_kit::component::notification::Notification;
 use gpui_kit::component::{ActiveTheme, WindowExt};
+use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
@@ -102,13 +103,16 @@ pub struct RootView {
     pub(super) installing: usize,
     /// The quit confirmation is showing, so another request doesn't stack a second one.
     pub(super) quit_open: bool,
+    /// Add ROM's file browser, while it's open.
+    pub(super) browser: Option<super::browser::Browser>,
+    pub(super) browser_focus: FocusHandle,
     /// Games across every listed system that belong somewhere else.
     /// Filled in the background.
     pub(super) misplaced: Vec<Misplaced>,
     detect_cache: Arc<Mutex<detect::Cache>>,
     /// Bumped per audit, so a slow older one can't overwrite a newer one.
     audit_generation: u64,
-    focus_handle: FocusHandle,
+    pub(super) focus_handle: FocusHandle,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -150,6 +154,8 @@ impl RootView {
             scrape: None,
             installing: 0,
             quit_open: false,
+            browser: None,
+            browser_focus: cx.focus_handle(),
             misplaced: Vec::new(),
             detect_cache: Arc::default(),
             audit_generation: 0,
@@ -179,7 +185,7 @@ impl RootView {
     /// screenshots don't need clicking around.
     /// `ROM_MANAGER_VIEW=list`,
     /// `ROM_MANAGER_OPEN=<card index>` (details sheet),
-    /// `ROM_MANAGER_DIALOG=delete|about|quit|install-skyscraper|add-system|remove-system|move`,
+    /// `ROM_MANAGER_DIALOG=delete|about|quit|add-rom|add-rom-full|install-skyscraper|add-system|remove-system|move`,
     /// `ROM_MANAGER_RUN=install-skyscraper|scrape` (start it right away),
     /// `ROM_MANAGER_INSTALL=<file>` (as if it were dropped on the window).
     #[cfg(debug_assertions)]
@@ -198,6 +204,8 @@ impl RootView {
         match var("ROM_MANAGER_DIALOG").as_deref() {
             Some("about") => super::details::open_about(self, window, cx),
             Some("quit") => self.request_quit(window, cx),
+            Some("add-rom") => self.open_browser(window, cx),
+            Some("add-rom-full") => self.open_browser_in(super::browser::Layout::Full, window, cx),
             Some("install-skyscraper") => super::details::confirm_install_skyscraper(window, cx),
             // After the first audit, so suggestions show.
             Some("add-system") => cx
@@ -392,7 +400,13 @@ impl RootView {
     // -----------------------------------------------------------------------
 
     /// Native "Add ROM" file picker off the UI thread, then install.
+    /// Add ROM: the built-in file browser.
     pub(super) fn pick_and_install(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.open_browser(window, cx);
+    }
+
+    /// The desktop's own file chooser, offered from the browser.
+    pub(super) fn pick_native(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let system = self.selected;
         let extensions: Vec<String> =
             system.extensions.iter().map(|e| e.trim_start_matches('.').to_string()).collect();
@@ -936,7 +950,12 @@ impl Render for RootView {
             .flex_row()
             .bg(cx.theme().background)
             .text_color(cx.theme().foreground)
-            .child(self.render_sidebar(window.is_fullscreen(), cx))
-            .child(self.render_main(window, cx))
+            .map(|root| {
+                if self.browser.as_ref().is_some_and(|b| b.layout == super::browser::Layout::Full) {
+                    root.child(self.render_full_browser(cx))
+                } else {
+                    root.child(self.render_sidebar(window.is_fullscreen(), cx)).child(self.render_main(window, cx))
+                }
+            })
     }
 }

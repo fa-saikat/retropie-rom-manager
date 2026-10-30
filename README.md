@@ -151,7 +151,7 @@ Debug builds can open straight into a given state, which helps with screenshots 
 | `ROM_MANAGER_SYSTEM=<id>` | Open on a system, e.g. `psx` |
 | `ROM_MANAGER_VIEW=list` | Start in list view |
 | `ROM_MANAGER_OPEN=<index>` | Open the details panel for that card |
-| `ROM_MANAGER_DIALOG=…` | `delete`, `about`, `quit`, `install-skyscraper`, `add-system`, `remove-system` or `move` |
+| `ROM_MANAGER_DIALOG=…` | `delete`, `about`, `quit`, `add-rom`, `add-rom-full`, `install-skyscraper`, `add-system`, `remove-system` or `move` |
 | `ROM_MANAGER_RUN=…` | Start `install-skyscraper` or `scrape` right away |
 | `ROM_MANAGER_INSTALL=<file>` | Act as if the file was dropped on the window |
 | `ROM_MANAGER_CONFIGS=<dir>` | Read emulator configs from a stand-in for `/opt/retropie/configs` |

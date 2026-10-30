@@ -1,4 +1,5 @@
 mod assets;
+mod browse;
 mod cli;
 mod config;
 mod detect;
@@ -53,6 +54,13 @@ fn main() {
                 // Gamepads mapped to keys often have Backspace but no Esc, so
                 // it closes dialogs too. Text fields still get it first.
                 KeyBinding::new("backspace", dialog::Cancel, Some("Dialog")),
+                KeyBinding::new("up", ui::MoveUp, Some(ui::BROWSER_KEY_CONTEXT)),
+                KeyBinding::new("down", ui::MoveDown, Some(ui::BROWSER_KEY_CONTEXT)),
+                KeyBinding::new("enter", ui::Activate, Some(ui::BROWSER_KEY_CONTEXT)),
+                KeyBinding::new("backspace", ui::Back, Some(ui::BROWSER_KEY_CONTEXT)),
+                KeyBinding::new("left", ui::FocusPlaces, Some(ui::BROWSER_KEY_CONTEXT)),
+                KeyBinding::new("right", ui::FocusFiles, Some(ui::BROWSER_KEY_CONTEXT)),
+                KeyBinding::new("escape", ui::Close, Some(ui::BROWSER_KEY_CONTEXT)),
             ]);
             cx.on_action(|_: &ui::Quit, cx| ui::request_quit(cx));
 
