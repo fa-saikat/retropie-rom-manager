@@ -8,3 +8,8 @@ Icon=retropie-rom-manager
 Terminal=false
 Categories=Game;Utility;
 StartupNotify=true
+Actions=fullscreen;
+
+[Desktop Action fullscreen]
+Name=Open in Fullscreen
+Exec=retropie-rom-manager --fullscreen
