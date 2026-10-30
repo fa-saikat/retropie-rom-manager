@@ -1,3 +1,18 @@
+retropie-rom-manager (2.3.0-1) unstable; urgency=low
+
+  * Everything works from the keyboard: the arrow keys, Enter and Backspace
+    reach every control, so a gamepad mapped to those keys drives the whole
+    app. P, S and X play, scrape or delete the selected game.
+  * Add ROM opens a built-in file browser that lists USB drives and mounts
+    them. It fills the window in fullscreen and is a dialog otherwise. The
+    package now recommends udisks2, which does the mounting.
+  * A Quit button at the bottom of the sidebar, also on Ctrl+Q. Quitting
+    asks first and says if anything is still in progress.
+  * Buttons that open the file manager are hidden in fullscreen, where it
+    would open behind the app.
+
+ -- FA Saikat <fahimabrar.saikat@gmail.com>  Sat, 31 Oct 2026 05:06:33 +0600
+
 retropie-rom-manager (2.2.0-1) unstable; urgency=low
 
   * The UI scales up on 1440p and 4K displays, so it looks the same as on
