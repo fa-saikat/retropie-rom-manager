@@ -8,6 +8,6 @@
 
 ## Checklist
 
-- [ ] `cargo test` passes
+- [ ] `cargo test` and `cargo clippy --all-targets -- -D warnings` pass
 - [ ] Tested in the running app, if the change is visible
 - [ ] README updated, if behavior, requirements or limitations changed

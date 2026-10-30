@@ -1,9 +1,11 @@
-name: Release
+name: CI
 
-# Every pull request builds both .debs and test-installs them on Debian and
-# Ubuntu. A push to main that carries a new version in Cargo.toml also
-# creates a draft release with the packages, to be checked and published by
-# hand. Publishing the draft creates the tag.
+# Pull requests are linted and tested; no packages are built for them.
+# Packages are built only when a push to main carries a new version in
+# Cargo.toml: both .debs are built, test-installed on Debian and Ubuntu, and
+# attached to a draft release, to be checked and published by hand.
+# Publishing the draft creates the tag. A manual run builds and
+# test-installs the packages without releasing them.
 on:
   push:
     branches: [main]
@@ -77,11 +79,40 @@ jobs:
               ;;
           esac
 
+  check:
+    name: Lint and test
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-22.04
+    env:
+      # rustc can overflow its stack compiling gpui-component.
+      RUST_MIN_STACK: "16777216"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
+            libx11-xcb-dev libxcb1-dev libfontconfig-dev libfreetype-dev \
+            libvulkan-dev libzstd-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Clippy
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      - name: Test
+        run: cargo test --locked
+
   build:
     name: Build (${{ matrix.arch }})
     needs: version
-    # Pull requests and manual runs always build; pushes only when releasing.
-    if: github.event_name != 'push' || needs.version.outputs.release == 'true'
+    if: needs.version.outputs.release == 'true' || github.event_name == 'workflow_dispatch'
     strategy:
       fail-fast: false
       matrix:
@@ -125,6 +156,9 @@ jobs:
           name: deb-${{ matrix.arch }}
           path: target/debian/*.deb
           if-no-files-found: error
+          # The release job attaches them right away; keep them only long
+          # enough to grab a manual build.
+          retention-days: 3
 
   install:
     name: Install on ${{ matrix.image }} (${{ matrix.arch }})

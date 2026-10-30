@@ -177,7 +177,7 @@ impl RootView {
             Some("add-system") => cx
                 .spawn_in(window, async move |this, cx| {
                     cx.background_executor().timer(Duration::from_secs(1)).await;
-                    this.update_in(cx, |this, window, cx| super::details::open_add_system(this, window, cx)).ok();
+                    this.update_in(cx, super::details::open_add_system).ok();
                 })
                 .detach(),
             Some("remove-system") => super::details::confirm_remove_system(self.selected, window, cx),
