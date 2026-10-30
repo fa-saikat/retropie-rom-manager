@@ -18,6 +18,7 @@ use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 
 use super::details;
+use super::nav::{self, HeaderItem, LibItem};
 use super::root::{RootView, ViewMode};
 use super::scale::px;
 use super::sidebar::{system_glyph, system_tile};
@@ -62,6 +63,24 @@ fn wrong_system_tag(to: &'static SystemDef) -> Tag {
     Tag::danger().small().child(format!("{} game?", to.short_name))
 }
 
+/// As many ≥196px columns as fit next to the sidebar, in 1080p pixels.
+pub(super) fn grid_columns(window: &Window) -> u16 {
+    let width = window.viewport_size().width.as_f32() / super::scale::factor();
+    let available = width - SIDEBAR_WIDTH - 2. * CONTENT_PADDING;
+    ((available + GRID_GAP) / (CARD_MIN_WIDTH + GRID_GAP)).floor().max(1.) as u16
+}
+
+/// What the notice's button does, when it has one.
+#[derive(Clone)]
+pub(super) enum NoticeAction {
+    /// One game moves straight away (nothing is lost).
+    MoveOne(GameEntry, &'static SystemDef),
+    /// Several get a confirmation listing where each goes.
+    MoveAll,
+    InstallSkyscraper,
+    ScrapeMissing,
+}
+
 /// First genre only — ScreenScraper often sends "Shooter / Run and gun".
 fn short_genre(genre: &str) -> &str {
     genre.split(['/', ',']).next().unwrap_or(genre).trim()
@@ -78,13 +97,19 @@ impl RootView {
                 this.install_paths(paths.paths().to_vec(), window, cx)
             }))
             .child(
-                div().size_full().overflow_y_scrollbar().child(
+                div()
+                    .id("main-scroll")
+                    .size_full()
+                    .overflow_y_scroll()
+                    .track_scroll(&self.nav.scroll)
+                    .vertical_scrollbar(&self.nav.scroll)
+                    .child(
                     v_flex()
                         .p(px(CONTENT_PADDING))
                         .gap_5()
                         .child(self.render_header(window.is_fullscreen(), cx))
-                        .children(self.render_notice(cx))
-                        .child(self.render_toolbar(cx))
+                        .children(self.render_notice(window.is_fullscreen(), cx))
+                        .child(self.render_toolbar(window.is_fullscreen(), cx))
                         .child(self.render_library(window, cx)),
                 ),
             )
@@ -124,6 +149,8 @@ impl RootView {
         });
 
         let folder = self.system_folder();
+        let focused = self.focused_header(fullscreen);
+        let ring = |item: HeaderItem, button: Button| nav::ringed(button, focused == Some(item), t.radius, t.ring);
         h_flex()
             .gap_4()
             .items_start()
@@ -146,15 +173,17 @@ impl RootView {
                 h_flex()
                     .gap_2()
                     .when(!fullscreen, |buttons| {
-                        buttons.child(
+                        buttons.child(ring(
+                            HeaderItem::Folder,
                             Button::new("open-system-folder")
                                 .outline()
                                 .icon(Icon::new(IconName::FolderOpen))
                                 .tooltip("Open in file manager")
                                 .on_click(cx.listener(move |this, _, _, cx| this.open_folder(folder.clone(), cx))),
-                        )
+                        ))
                     })
-                    .child(
+                    .child(ring(
+                        HeaderItem::Scrape,
                         Button::new("scrape-all")
                             .outline()
                             .icon(Icon::new(IconName::ImageDown))
@@ -163,14 +192,15 @@ impl RootView {
                             .disabled(!self.skyscraper_installed || self.games.is_empty())
                             .tooltip("Fetch box art & metadata for every game")
                             .on_click(cx.listener(|this, _, window, cx| this.start_scrape(Vec::new(), window, cx))),
-                    )
-                    .child(
+                    ))
+                    .child(ring(
+                        HeaderItem::AddRom,
                         Button::new("add-rom")
                             .primary()
                             .icon(Icon::new(IconName::Plus))
                             .label("Add ROM")
                             .on_click(cx.listener(|this, _, window, cx| this.pick_and_install(window, cx))),
-                    ),
+                    )),
             )
     }
 
@@ -182,7 +212,7 @@ impl RootView {
         icon: impl Into<Icon>,
         lead: String,
         body: impl IntoElement,
-        action: Option<Button>,
+        action: Option<AnyElement>,
         cx: &App,
     ) -> AnyElement {
         let t = cx.theme();
@@ -217,9 +247,42 @@ impl RootView {
             .into_any_element()
     }
 
+    /// The notice's button, if the notice showing has one. Follows the same
+    /// order as `render_notice`.
+    pub(super) fn notice_action(&self) -> Option<NoticeAction> {
+        if self.setup.is_some() || self.running.is_some() {
+            return None;
+        }
+        match self.misplaced_games().as_slice() {
+            [] => {}
+            [m] => return Some(NoticeAction::MoveOne(m.entry.clone(), m.to)),
+            _ => return Some(NoticeAction::MoveAll),
+        }
+        if !self.skyscraper_installed {
+            return self.can_install_skyscraper.then_some(NoticeAction::InstallSkyscraper);
+        }
+        if self.es_running || self.scrape.is_some() || self.unscraped_games().is_empty() {
+            return None;
+        }
+        Some(NoticeAction::ScrapeMissing)
+    }
+
+    pub(super) fn run_notice_action(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        match self.notice_action() {
+            Some(NoticeAction::MoveOne(entry, to)) => self.move_game(entry, to, window, cx),
+            Some(NoticeAction::MoveAll) => details::confirm_move_misplaced(self, window, cx),
+            Some(NoticeAction::InstallSkyscraper) => details::confirm_install_skyscraper(window, cx),
+            Some(NoticeAction::ScrapeMissing) => self.scrape_unscraped(window, cx),
+            None => {}
+        }
+    }
+
     /// At most one notice, most important first.
-    fn render_notice(&self, cx: &mut Context<Self>) -> Option<AnyElement> {
+    fn render_notice(&self, fullscreen: bool, cx: &mut Context<Self>) -> Option<AnyElement> {
         let t = cx.theme();
+        let focused = self.focused_header(fullscreen) == Some(HeaderItem::Notice);
+        let ring = |button: Button| Some(nav::ringed(button, focused, t.radius, t.ring).into_any_element());
+        let run = || cx.listener(|this: &mut RootView, _: &ClickEvent, window, cx| this.run_notice_action(window, cx));
         if let Some(job) = &self.setup {
             let secs = job.started.elapsed().as_secs();
             let body = h_flex()
@@ -290,27 +353,18 @@ impl RootView {
                     if one { "it" } else { "them" },
                 ),
             };
-            // One game moves straight away (nothing is lost); several get
-            // a confirmation listing where each goes.
-            let single = match misplaced.as_slice() {
-                [m] => Some((m.entry.clone(), m.to)),
-                _ => None,
-            };
             return Some(Self::notice_row(
                 t.danger,
                 Icon::new(IconName::TriangleAlert),
                 lead,
                 body,
-                Some(
+                ring(
                     Button::new("move-misplaced")
                         .primary()
                         .small()
                         .icon(Icon::new(IconName::FolderInput))
                         .label(label)
-                        .on_click(cx.listener(move |this, _, window, cx| match single.clone() {
-                            Some((entry, to)) => this.move_game(entry, to, window, cx),
-                            None => details::confirm_move_misplaced(this, window, cx),
-                        })),
+                        .on_click(run()),
                 ),
                 cx,
             ));
@@ -322,15 +376,13 @@ impl RootView {
                     Icon::new(IconName::ImageDown),
                     "Box art needs Skyscraper".into(),
                     "RetroPie's scraper isn't installed yet. Install it here with RetroPie-Setup — no API keys needed.",
-                    Some(
+                    ring(
                         Button::new("install-skyscraper")
                             .primary()
                             .small()
                             .icon(Icon::new(IconName::Download))
                             .label("Install Skyscraper")
-                            .on_click(cx.listener(|_, _, window, cx| {
-                                details::confirm_install_skyscraper(window, cx)
-                            })),
+                            .on_click(run()),
                     ),
                     cx,
                 ));
@@ -366,18 +418,33 @@ impl RootView {
             Icon::new(IconName::ImageDown),
             format!("{} without artwork", plural(missing, "game")),
             "Scrape them to get box art and descriptions here and in EmulationStation.",
-            Some(
+            ring(
                 Button::new("scrape-missing")
                     .primary()
                     .small()
                     .label(format!("Scrape {missing}"))
-                    .on_click(cx.listener(|this, _, window, cx| this.scrape_unscraped(window, cx))),
+                    .on_click(run()),
             ),
             cx,
         ))
     }
 
-    fn render_toolbar(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_toolbar(&self, fullscreen: bool, cx: &mut Context<Self>) -> impl IntoElement {
+        let focused = self.focused_header(fullscreen);
+        let (muted, radius, ring) = (cx.theme().muted_foreground, cx.theme().radius, cx.theme().ring);
+        let search = self.search_keys(
+            nav::ringed(
+                Input::new(&self.search)
+                    .w(px(240.))
+                    .prefix(Icon::new(IconName::Search).small().text_color(muted))
+                    .when_some(Keystroke::parse("/").ok(), |input, key| input.suffix(Kbd::new(key)))
+                    .cleanable(true),
+                focused == Some(HeaderItem::Search),
+                radius,
+                ring,
+            ),
+            cx,
+        );
         let t = cx.theme();
         let count = if self.query.trim().is_empty() {
             self.games.len().to_string()
@@ -389,14 +456,8 @@ impl RootView {
             .child(div().text_base().font_semibold().child("Library"))
             .when(!self.games.is_empty(), |el| el.child(div().text_color(t.muted_foreground).child(count)))
             .child(div().flex_1())
-            .child(
-                Input::new(&self.search)
-                    .w(px(240.))
-                    .prefix(Icon::new(IconName::Search).small().text_color(t.muted_foreground))
-                    .when_some(Keystroke::parse("/").ok(), |input, key| input.suffix(Kbd::new(key)))
-                    .cleanable(true),
-            )
-            .child(
+            .child(search)
+            .child(nav::ringed(
                 ButtonGroup::new("view-mode")
                     .outline()
                     .child(
@@ -415,7 +476,10 @@ impl RootView {
                         let mode = if selected.contains(&1) { ViewMode::List } else { ViewMode::Grid };
                         this.set_view_mode(mode, cx);
                     })),
-            )
+                focused == Some(HeaderItem::View),
+                t.radius,
+                t.ring,
+            ))
     }
 
     fn render_library(&self, window: &mut Window, cx: &mut Context<Self>) -> AnyElement {
@@ -458,13 +522,16 @@ impl RootView {
             )
             .content(
                 EmptyContent::new()
-                    .child(
+                    .child(nav::ringed(
                         Button::new("add-first")
                             .primary()
                             .icon(Icon::new(IconName::Plus))
                             .label("Add your first ROM")
                             .on_click(cx.listener(|this, _, window, cx| this.pick_and_install(window, cx))),
-                    )
+                        self.focused_library() == Some(LibItem::AddFirst),
+                        t.radius,
+                        t.ring,
+                    ))
                     .child(
                         h_flex()
                             .mt_2()
@@ -484,24 +551,32 @@ impl RootView {
             )
     }
 
-    fn render_grid(&self, games: &[&GameEntry], window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        // As many ≥196px columns as fit next to the sidebar, in 1080p pixels.
-        let width = window.viewport_size().width.as_f32() / super::scale::factor();
-        let available = width - SIDEBAR_WIDTH - 2. * CONTENT_PADDING;
-        let columns = ((available + GRID_GAP) / (CARD_MIN_WIDTH + GRID_GAP)).floor().max(1.) as u16;
+    /// Keeps the focused card or row in view: the container's children are
+    /// the library's items, in order.
+    fn reveal_focused(&self, container: Div) -> Div {
+        let Some(nav::Focus::Library(ix)) = self.nav.visible.then_some(self.nav.focus) else { return container };
+        let (scroll, reveal) = (self.nav.scroll.clone(), self.nav.reveal.clone());
+        container.on_children_prepainted(move |bounds, window, _| {
+            nav::reveal_child(&scroll, &reveal, bounds.get(ix).copied(), window)
+        })
+    }
 
-        div()
+    fn render_grid(&self, games: &[&GameEntry], window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let grid = div()
             .grid()
-            .grid_cols(columns)
+            .grid_cols(grid_columns(window))
             .gap(px(GRID_GAP))
             .when(self.query.trim().is_empty(), |grid| grid.child(self.render_add_tile(cx)))
-            .children(games.iter().enumerate().map(|(i, g)| self.render_card(i, g, cx)))
+            .children(games.iter().enumerate().map(|(i, g)| self.render_card(i, g, cx)));
+        self.reveal_focused(grid)
     }
 
     fn render_add_tile(&self, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.theme();
+        let focused = self.focused_library() == Some(LibItem::AddTile);
         v_flex()
             .id("add-tile")
+            .relative()
             .min_h(px(ART_HEIGHT + 110.))
             .p_4()
             .gap_2()
@@ -542,6 +617,7 @@ impl RootView {
                             .child(*ext)
                     })),
             )
+            .when(focused, |tile| tile.child(nav::ring(t.radius_lg, t.ring)))
             .on_click(cx.listener(|this, _, window, cx| this.pick_and_install(window, cx)))
     }
 
@@ -688,9 +764,11 @@ impl RootView {
         let chips = h_flex().gap_1().children(misplaced.map(wrong_system_tag)).child(chips);
 
         let open_entry = entry.clone();
+        let focused = self.focused_library() == Some(LibItem::Game(index));
         v_flex()
             .id(("card", index))
             .group("card")
+            .relative()
             .rounded(t.radius_lg)
             .overflow_hidden()
             .border_1()
@@ -720,6 +798,7 @@ impl RootView {
                             ),
                     ),
             )
+            .when(focused, |card| card.child(nav::ring(t.radius_lg, t.ring)))
             .on_click(cx.listener(move |this, _, window, cx| details::open_details(this, &open_entry, window, cx)))
     }
 
@@ -763,8 +842,10 @@ impl RootView {
             let delete_entry = (*entry).clone();
             let play_entry = (*entry).clone();
             let can_play = self.can_run() && self.misplaced_as(entry).is_none();
+            let focused = self.focused_library() == Some(LibItem::Game(i));
             h_flex()
                 .id(("row", i))
+                .relative()
                 .h(px(54.))
                 .px_3()
                 .gap_3()
@@ -825,6 +906,7 @@ impl RootView {
                             })),
                     ),
                 )
+                .when(focused, |row| row.child(nav::ring(px(0.), t.ring)))
                 .on_click(cx.listener(move |this, _, window, cx| details::open_details(this, &open_entry, window, cx)))
         });
 
@@ -835,6 +917,6 @@ impl RootView {
             .border_color(t.border.opacity(0.7))
             .bg(theme::card_bg(cx))
             .child(head)
-            .children(rows)
+            .child(self.reveal_focused(v_flex().children(rows)))
     }
 }

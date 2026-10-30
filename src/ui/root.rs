@@ -106,6 +106,7 @@ pub struct RootView {
     /// Add ROM's file browser, while it's open.
     pub(super) browser: Option<super::browser::Browser>,
     pub(super) browser_focus: FocusHandle,
+    pub(super) nav: super::nav::Nav,
     /// Games across every listed system that belong somewhere else.
     /// Filled in the background.
     pub(super) misplaced: Vec<Misplaced>,
@@ -156,6 +157,7 @@ impl RootView {
             quit_open: false,
             browser: None,
             browser_focus: cx.focus_handle(),
+            nav: super::nav::Nav::new(),
             misplaced: Vec::new(),
             detect_cache: Arc::default(),
             audit_generation: 0,
@@ -179,6 +181,12 @@ impl RootView {
         #[cfg(debug_assertions)]
         cx.defer_in(window, Self::debug_startup);
         view
+    }
+
+    /// Show the keyboard focus from the start, for running fullscreen
+    /// without a mouse.
+    pub fn show_focus(&mut self) {
+        self.nav.visible = true;
     }
 
     /// Debug builds only: put the window in a given state at launch so
@@ -363,6 +371,10 @@ impl RootView {
 
     fn focus_search(&mut self, _: &FocusSearch, window: &mut Window, cx: &mut Context<Self>) {
         self.search.update(cx, |s, cx| s.focus(window, cx));
+        let items = self.header_items(window.is_fullscreen());
+        if let Some(ix) = items.iter().position(|i| *i == super::nav::HeaderItem::Search) {
+            self.nav.focus = super::nav::Focus::Header(ix);
+        }
     }
 
     /// Quitting always asks first, saying what's still in progress.
@@ -941,10 +953,19 @@ impl Focusable for RootView {
 
 impl Render for RootView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-        div()
-            .key_context(KEY_CONTEXT)
+        // The arrow and letter keys only drive the window while it has focus
+        // itself, not while the search field does.
+        let context = if self.focus_handle.is_focused(window) {
+            format!("{KEY_CONTEXT} {}", super::nav::KEY_CONTEXT)
+        } else {
+            KEY_CONTEXT.to_string()
+        };
+        let root = div()
+            .key_context(context.as_str())
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(Self::focus_search))
+            .capture_any_mouse_down(cx.listener(|this, _, _, cx| this.hide_ring(cx)));
+        self.nav_actions(root, cx)
             .size_full()
             .flex()
             .flex_row()

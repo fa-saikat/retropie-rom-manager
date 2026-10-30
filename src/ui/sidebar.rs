@@ -16,6 +16,7 @@ use gpui_kit::*;
 use std::rc::Rc;
 
 use super::details;
+use super::nav::SideItem;
 use super::root::RootView;
 use super::scale::px;
 use crate::assets;
@@ -58,6 +59,7 @@ struct SystemRow {
     /// Games in this system that belong to another one.
     flagged: usize,
     active: bool,
+    focused: bool,
     on_click: Handler,
     /// `None` when it's the last system left (the list can't be empty).
     on_remove: Option<Handler>,
@@ -70,6 +72,7 @@ struct AddRow {
     available: usize,
     /// ...of which have games waiting for them.
     suggested: usize,
+    focused: bool,
     on_click: Handler,
 }
 
@@ -128,6 +131,7 @@ impl SystemRow {
                         .bg(theme::accent(self.system.accent)),
                 )
             })
+            .when(self.focused, |row| row.child(super::nav::ring(t.radius, t.ring)))
             .child(system_tile(self.system, px(24.), px(14.), px(6.)))
             .child(div().flex_1().min_w_0().truncate().child(self.system.display_name))
             .when(self.flagged > 0, |row| {
@@ -173,6 +177,7 @@ impl AddRow {
         h_flex()
             .id(id)
             .mt_1()
+            .relative()
             .h(px(36.))
             .px_2()
             .gap_2p5()
@@ -195,6 +200,7 @@ impl AddRow {
                     .justify_center()
                     .child(Icon::new(IconName::Plus).with_size(px(14.)).text_color(t.muted_foreground)),
             )
+            .when(self.focused, |row| row.child(super::nav::ring(t.radius, t.ring)))
             .child(div().flex_1().min_w_0().truncate().child("Add emulator"))
             .child(if self.suggested > 0 {
                 // Systems with games already waiting for them.
@@ -210,6 +216,8 @@ impl RootView {
     pub(super) fn render_sidebar(&self, fullscreen: bool, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.theme();
         let is_dark = t.is_dark();
+        let focused = self.focused_side(fullscreen);
+        let is = |item: SideItem| focused == Some(item);
 
         let brand = v_flex()
             .gap_4()
@@ -264,6 +272,7 @@ impl RootView {
                     count: self.counts.get(system.id).copied().unwrap_or(0),
                     flagged: self.flagged_in(system),
                     active: system.id == self.selected.id,
+                    focused: is(SideItem::System(system)),
                     on_click: Rc::new(select),
                     on_remove: can_remove.then(|| Rc::new(remove) as Handler),
                 })
@@ -275,6 +284,7 @@ impl RootView {
             rows.push(Row::Add(AddRow {
                 available: missing.len(),
                 suggested,
+                focused: is(SideItem::AddEmulator),
                 on_click: Rc::new(cx.listener(|this: &mut RootView, _: &ClickEvent, window, cx| {
                     details::open_add_system(this, window, cx)
                 })),
@@ -287,13 +297,13 @@ impl RootView {
             .gap_0p5()
             .when(!fullscreen, |footer| {
                 footer.child(
-                    footer_row("open-roms", Icon::new(IconName::FolderOpen), "ROMs folder", cx)
+                    footer_row("open-roms", Icon::new(IconName::FolderOpen), "ROMs folder", is(SideItem::RomsFolder), cx)
                         .tooltip(|window, cx| Tooltip::new("Open ~/RetroPie/roms").build(window, cx))
                         .on_click(cx.listener(move |this, _, _, cx| this.open_folder(roms_root.clone(), cx))),
                 )
             })
             .child(
-                footer_row("about", Icon::new(IconName::Info), "About", cx)
+                footer_row("about", Icon::new(IconName::Info), "About", is(SideItem::About), cx)
                     .on_click(cx.listener(|this, _, window, cx| details::open_about(this, window, cx))),
             )
             .child(
@@ -301,12 +311,13 @@ impl RootView {
                     "theme",
                     Icon::new(if is_dark { IconName::Sun } else { IconName::Moon }),
                     if is_dark { "Light mode" } else { "Dark mode" },
+                    is(SideItem::Theme),
                     cx,
                 )
                 .on_click(cx.listener(|this, _, window, cx| this.toggle_theme(window, cx))),
             )
             .child(div().my_1().h(px(1.)).bg(cx.theme().sidebar_border))
-            .child(quit_row(cx).on_click(cx.listener(|this, _, window, cx| this.request_quit(window, cx))));
+            .child(quit_row(is(SideItem::Quit), cx).on_click(cx.listener(|this, _, window, cx| this.request_quit(window, cx))));
 
         Sidebar::new("systems")
             .w(px(240.))
@@ -318,10 +329,12 @@ impl RootView {
 }
 
 /// One action in the sidebar footer: icon and label, like the system rows.
-fn footer_row(id: &'static str, icon: Icon, label: &'static str, cx: &App) -> Stateful<Div> {
+fn footer_row(id: &'static str, icon: Icon, label: &'static str, focused: bool, cx: &App) -> Stateful<Div> {
     let t = cx.theme();
     h_flex()
         .id(id)
+        .relative()
+        .when(focused, |row| row.child(super::nav::ring(t.radius, t.ring)))
         .h(px(32.))
         .px_2()
         .gap_2p5()
@@ -335,8 +348,8 @@ fn footer_row(id: &'static str, icon: Icon, label: &'static str, cx: &App) -> St
 }
 
 /// Quit sits apart at the bottom, bordered like the header buttons, and
-/// turns soft red on hover.
-fn quit_row(cx: &App) -> Stateful<Div> {
+/// turns soft red on hover and when it has keyboard focus.
+fn quit_row(focused: bool, cx: &App) -> Stateful<Div> {
     let t = cx.theme();
     let danger = t.danger;
     h_flex()
@@ -352,6 +365,7 @@ fn quit_row(cx: &App) -> Stateful<Div> {
         .cursor_pointer()
         .text_color(t.sidebar_foreground)
         .hover(move |s| s.bg(danger.opacity(0.1)).border_color(danger.opacity(0.4)).text_color(danger))
+        .when(focused, |row| row.bg(danger.opacity(0.1)).border_color(danger).text_color(danger))
         .child(Icon::empty().path(assets::QUIT_ICON).with_size(px(16.)))
         .child(div().flex_1().child("Quit"))
         .child(div().text_xs().text_color(t.muted_foreground).child("Ctrl+Q"))
