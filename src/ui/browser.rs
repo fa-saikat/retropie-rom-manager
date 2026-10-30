@@ -1,7 +1,7 @@
-//! The built-in file browser for Add ROM (#44). One state, two layouts to
-//! try side by side: a dialog for the mouse, and a full-window view for the
-//! keyboard and a gamepad. The Layout switch in both is for choosing
-//! between them and goes once one is picked.
+//! The built-in file browser for Add ROM. One state, two layouts: a dialog
+//! for the mouse, and a full-window view for the keyboard and a gamepad.
+//! It opens full-window in fullscreen and as a dialog otherwise, and the
+//! Layout switch in both flips between them.
 
 use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
@@ -514,7 +514,7 @@ fn on_click<E: ?Sized + 'static>(
     }
 }
 
-/// For trying both layouts; goes once one is picked.
+/// Flips between the layouts, keeping the folder and the selection.
 fn layout_switch(layout: Layout, this: &WeakEntity<RootView>) -> impl IntoElement {
     let this = this.clone();
     ButtonGroup::new("browser-layout")

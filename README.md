@@ -17,7 +17,7 @@ Managing ROMs on RetroPie usually means copying files into the right folder by h
 
 ## What it does
 
-**Installs from your downloads.** Drag files onto the window or pick them in the file picker. Zips are extracted automatically, except for arcade sets, which MAME needs zipped. Files are copied into `~/RetroPie/roms/<system>`.
+**Installs from your downloads.** Drag files onto the window or pick them in the built-in file browser, which also lists USB drives and mounts them for you. In fullscreen it fills the window and works with just the arrow keys, Enter and Backspace. Zips are extracted automatically, except for arcade sets, which MAME needs zipped. Files are copied into `~/RetroPie/roms/<system>`.
 
 **Catches ROMs in the wrong system.** The app reads file headers instead of trusting extensions, because `.zip`, `.bin`, `.cue` and `.chd` are shared by several systems. Drop a Game Boy Advance zip on Genesis and it asks whether to install it to GBA instead. Games already sitting in the wrong folder get a warning and a one-click move. If the right system isn't in your list yet, the app adds it.
 
@@ -135,7 +135,7 @@ sudo apt install libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
   libx11-xcb-dev libxcb1-dev libfontconfig-dev libfreetype-dev libvulkan-dev libzstd-dev
 ```
 
-The file picker goes through the XDG desktop portal (`xdg-desktop-portal` plus a backend such as `xdg-desktop-portal-gtk`), on both X11 and Wayland.
+USB drives are listed with `lsblk` and mounted through `udisksctl` (the `udisks2` package). The browser's **Use system picker** button goes through the XDG desktop portal (`xdg-desktop-portal` plus a backend such as `xdg-desktop-portal-gtk`), on both X11 and Wayland.
 
 The UI is built with [GPUI Kit](https://gpui-kit.com) on top of [GPUI](https://www.gpui.rs), the framework behind the Zed editor. Detection, grouping, scraping and launching have no UI dependency and are covered by `cargo test`.
 

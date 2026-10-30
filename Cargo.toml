@@ -42,6 +42,8 @@ section = "utils"
 priority = "optional"
 # dpkg-shlibdeps against the binary picks up GPUI's X11/Wayland/fontconfig deps.
 depends = "$auto"
+# Mounts USB drives picked in the Add ROM browser.
+recommends = "udisks2"
 maintainer-scripts = "packaging/DEBIAN"
 changelog = "packaging/changelog"
 assets = [
