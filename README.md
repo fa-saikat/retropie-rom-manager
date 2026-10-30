@@ -78,7 +78,7 @@ The arm64 build is new. If it doesn't start on your board, please [open an issue
 | `-h`, `--help` | Print the options and exit |
 | `-V`, `--version` | Print the version and exit |
 
-To quit, press **Ctrl+Q** or the exit button (a door) at the bottom of the sidebar. The app asks first, and says if anything is still in progress.
+To quit, press **Ctrl+Q** or **Quit** at the bottom of the sidebar. The app asks first, and says if anything is still in progress.
 
 ## How it works
 
