@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use gpui_kit::assets::IconName;
 use gpui_kit::component::breadcrumb::{Breadcrumb, BreadcrumbItem};
-use gpui_kit::component::button::{Button, ButtonGroup, ButtonVariants};
+use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::checkbox::Checkbox;
 use gpui_kit::component::dialog::{Dialog, DialogFooter};
 use gpui_kit::component::spinner::Spinner;
@@ -516,26 +516,18 @@ fn on_click<E: ?Sized + 'static>(
 
 /// Flips between the layouts, keeping the folder and the selection.
 fn layout_switch(layout: Layout, this: &WeakEntity<RootView>) -> impl IntoElement {
-    let this = this.clone();
-    ButtonGroup::new("browser-layout")
-        .outline()
-        .small()
-        .child(
-            Button::new("browser-layout-dialog")
-                .icon(Icon::new(IconName::AppWindow))
-                .tooltip("Dialog")
-                .selected(layout == Layout::Dialog),
-        )
-        .child(
-            Button::new("browser-layout-full")
-                .icon(Icon::new(IconName::Maximize))
-                .tooltip("Full window")
-                .selected(layout == Layout::Full),
-        )
-        .on_click(move |selected: &Vec<usize>, window, cx| {
-            let layout = if selected.contains(&1) { Layout::Full } else { Layout::Dialog };
-            this.update(cx, |view, cx| view.set_browser_layout(layout, window, cx)).ok();
-        })
+    let button = |id: &'static str, icon: IconName, tooltip: &'static str, target: Layout| {
+        Button::new(id)
+            .outline()
+            .icon(Icon::new(icon))
+            .tooltip(tooltip)
+            .selected(layout == target)
+            .on_click(on_click(this, move |view, window, cx| view.set_browser_layout(target, window, cx)))
+    };
+    h_flex()
+        .gap_2()
+        .child(button("browser-layout-dialog", IconName::AppWindow, "Dialog", Layout::Dialog))
+        .child(button("browser-layout-full", IconName::Maximize, "Full window", Layout::Full))
 }
 
 fn crumbs(b: &Browser, m: Metrics, this: &WeakEntity<RootView>, cx: &App) -> impl IntoElement {
