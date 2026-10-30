@@ -29,7 +29,7 @@ Managing ROMs on RetroPie usually means copying files into the right folder by h
 
 **Plays games without EmulationStation.** Play starts a game with the emulator RetroPie has set as the default for that system, read from `/opt/retropie/configs/<system>/emulators.cfg`. It uses the same emulator, config files and saves as EmulationStation.
 
-**Has a details panel for every game.** It shows the description, developer, publisher, genre, rating, which media types were saved, and every file on disk with its size. There's also a list view, search (press `/`), and light and dark themes.
+**Has a details panel for every game.** It shows the description, developer, publisher, genre, rating, which media types were saved, and every file on disk with its size. There's also a list view, search (press `/`), and light and dark themes, and everything [works from the keyboard](#keyboard).
 
 <table>
   <tr>
@@ -79,6 +79,21 @@ The arm64 build is new. If it doesn't start on your board, please [open an issue
 | `-V`, `--version` | Print the version and exit |
 
 To quit, press **Ctrl+Q** or **Quit** at the bottom of the sidebar. The app asks first, and says if anything is still in progress.
+
+### Keyboard
+
+Everything works without a mouse, from the arrow keys, Enter and Backspace alone, so a gamepad mapped to those keys (with AntiMicroX, say) drives the whole app. A ring shows where you are once you press a key; in fullscreen it shows from the start.
+
+| Key | Effect |
+|---|---|
+| Arrow keys | Move between systems, the header buttons and the games. Moving onto a system opens it. |
+| Enter | Open the game's details, or press the button or item that has the ring |
+| Backspace | Go back: from the games to the sidebar, out of a sheet or dialog, up a folder in the file browser |
+| P / S / X | Play, scrape or delete the game that has the ring, without opening its details. X on a system in the sidebar removes it. Deleting always asks first. |
+| `/` | Search the library. Down or Enter goes to the first match, and Esc clears the search. |
+| Ctrl+Q | Quit |
+
+In dialogs, the arrow keys move between the buttons and Enter presses the one with the ring. Confirmations open on **Cancel**, so a stray Enter never deletes anything.
 
 ## How it works
 
