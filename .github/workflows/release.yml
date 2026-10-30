@@ -1,8 +1,9 @@
 name: Release
 
-# Pull requests build both .debs as downloadable artifacts. Pushes to main
-# also publish a release, but only when Cargo.toml carries a version that
-# hasn't been tagged yet; any other merge to main is a no-op.
+# Every pull request builds both .debs and test-installs them on Debian and
+# Ubuntu. A push to main that carries a new version in Cargo.toml also
+# creates a draft release with the packages, to be checked and published by
+# hand. Publishing the draft creates the tag.
 on:
   push:
     branches: [main]
@@ -19,7 +20,8 @@ concurrency:
 
 jobs:
   version:
-    runs-on: ubuntu-22.04
+    name: Check version
+    runs-on: ubuntu-24.04
     outputs:
       version: ${{ steps.version.outputs.version }}
       release: ${{ steps.version.outputs.release }}
@@ -30,28 +32,53 @@ jobs:
 
       - name: Read version
         id: version
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           version=$(sed -n 's/^version *= *"\(.*\)"/\1/p' Cargo.toml | head -n1)
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          if [ "${{ github.event_name }}" = "pull_request" ] || [ "${{ github.ref }}" != "refs/heads/main" ]; then
-            echo "release=false" >> "$GITHUB_OUTPUT"
-          elif git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
-            echo "v$version is already released, nothing to do."
+          # A draft release has no tag yet, so look for the release as well.
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null \
+            || gh release view "v$version" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "v$version already has a release."
+            echo "new=false" >> "$GITHUB_OUTPUT"
             echo "release=false" >> "$GITHUB_OUTPUT"
           else
-            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "v$version is a new version."
+            echo "new=true" >> "$GITHUB_OUTPUT"
+            if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ]; then
+              echo "release=true" >> "$GITHUB_OUTPUT"
+            else
+              echo "release=false" >> "$GITHUB_OUTPUT"
+            fi
           fi
 
-      - name: Check changelog matches
-        if: steps.version.outputs.release == 'true'
+      # These run on release pull requests too, so mistakes show up before merging.
+      - name: Check version goes up
+        if: steps.version.outputs.new == 'true'
         run: |
-          top=$(sed -n '1s/^retropie-rom-manager (\(.*\)-[0-9]*).*/\1/p' packaging/changelog)
-          if [ "$top" != "${{ steps.version.outputs.version }}" ]; then
-            echo "::error::packaging/changelog starts at $top, but Cargo.toml says ${{ steps.version.outputs.version }}. Run ./scripts/generate-changelog.sh."
+          version=${{ steps.version.outputs.version }}
+          latest=$(git tag -l 'v*' | sed 's/^v//' | sort -V | tail -n1)
+          if [ -n "$latest" ] && [ "$(printf '%s\n%s\n' "$latest" "$version" | sort -V | tail -n1)" != "$version" ]; then
+            echo "::error::Cargo.toml says $version, which is lower than the latest release v$latest."
             exit 1
           fi
 
+      - name: Check changelog matches
+        if: steps.version.outputs.new == 'true'
+        run: |
+          expected="retropie-rom-manager (${{ steps.version.outputs.version }}-1)"
+          top=$(head -n1 packaging/changelog)
+          case "$top" in
+            "$expected "*) ;;
+            *)
+              echo "::error::packaging/changelog starts with \"$top\". Add an entry for $expected at the top."
+              exit 1
+              ;;
+          esac
+
   build:
+    name: Build (${{ matrix.arch }})
     needs: version
     # Pull requests and manual runs always build; pushes only when releasing.
     if: github.event_name != 'push' || needs.version.outputs.release == 'true'
@@ -91,9 +118,7 @@ jobs:
         run: cargo test --locked
 
       - name: Build .deb
-        run: |
-          chmod 755 packaging/DEBIAN/postinst packaging/DEBIAN/postrm
-          cargo deb
+        run: cargo deb
 
       - uses: actions/upload-artifact@v4
         with:
@@ -101,10 +126,54 @@ jobs:
           path: target/debian/*.deb
           if-no-files-found: error
 
+  install:
+    name: Install on ${{ matrix.image }} (${{ matrix.arch }})
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+        image: ['debian:12', 'debian:13', 'ubuntu:22.04', 'ubuntu:24.04']
+    runs-on: ${{ matrix.arch == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    container: ${{ matrix.image }}
+    env:
+      DEBIAN_FRONTEND: noninteractive
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: deb-${{ matrix.arch }}
+          path: dist
+
+      # Without recommends, so a dependency missing from the package fails here.
+      - name: Install
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends ./dist/*.deb
+
+      - name: Check installed files
+        run: |
+          test -x /usr/bin/retropie-rom-manager
+          test -f /usr/share/applications/retropie-rom-manager.desktop
+          test -f /usr/share/icons/hicolor/256x256/apps/retropie-rom-manager.svg
+          test -n "$(ls /usr/share/retropie-rom-manager/assets/icons)"
+          test -n "$(ls /usr/share/retropie-rom-manager/assets/systems)"
+          missing=$(ldd /usr/bin/retropie-rom-manager | grep 'not found' || true)
+          if [ -n "$missing" ]; then
+            echo "::error::Libraries the binary needs aren't installed:"
+            echo "$missing"
+            exit 1
+          fi
+
+      - name: Remove
+        run: |
+          apt-get remove -y retropie-rom-manager
+          test ! -e /usr/bin/retropie-rom-manager
+
   release:
-    needs: [version, build]
+    name: Draft release
+    needs: [version, install]
     if: needs.version.outputs.release == 'true'
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -116,19 +185,31 @@ jobs:
 
       - name: Write checksums and release notes
         run: |
+          version=${{ needs.version.outputs.version }}
           (cd dist && sha256sum *.deb > SHA256SUMS && cat SHA256SUMS)
-          # The top changelog entry's bullets, as a Markdown list.
-          awk 'NR > 1 && /^ -- / { exit } NR > 2' packaging/changelog \
-            | sed -e 's/^  \* /- /' -e 's/^    /  /' > notes.md
+          {
+            # The top changelog entry's bullets, as a Markdown list.
+            awk 'NR > 1 && /^ -- / { exit } NR > 2' packaging/changelog \
+              | sed -e 's/^  \* /- /' -e 's/^    /  /'
+            echo
+            echo "## Install"
+            echo
+            echo "Download the package for your machine and install it with apt. It needs Debian 12, Ubuntu 22.04 or newer, or a distribution based on them."
+            echo
+            echo "| Machine | Command |"
+            echo "|---|---|"
+            echo "| 64-bit PC (amd64) | \`sudo apt install ./retropie-rom-manager_${version}-1_amd64.deb\` |"
+            echo "| Raspberry Pi 4/5, Armbian and other 64-bit ARM (arm64) | \`sudo apt install ./retropie-rom-manager_${version}-1_arm64.deb\` |"
+          } > notes.md
           cat notes.md
 
-      - name: Create tag and release
+      - name: Create draft release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           version=${{ needs.version.outputs.version }}
           gh release create "v$version" dist/*.deb dist/SHA256SUMS \
+            --draft \
             --target "$GITHUB_SHA" \
             --title "v$version" \
-            --notes-file notes.md \
-            --latest
+            --notes-file notes.md

@@ -1,0 +1,91 @@
+name: Bug report
+description: Something doesn't work, crashes, or looks wrong.
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. If a ROM shows up under the wrong system, use the **Wrong system detected** form instead.
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead.
+      placeholder: |
+        I dropped a .zip on the PlayStation page and expected it to install, but…
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Open the app
+        2. Select Dreamcast
+        3. Click Scrape
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Shown in About, or run `dpkg -s retropie-rom-manager | grep Version`.
+      placeholder: "2.1.0"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: install
+    attributes:
+      label: How did you install it?
+      options:
+        - .deb (amd64)
+        - .deb (arm64)
+        - Built from source
+    validations:
+      required: true
+
+  - type: input
+    id: os
+    attributes:
+      label: Distribution and version
+      description: For example Ubuntu 24.04, Debian 13, Raspberry Pi OS (64-bit) Bookworm, Armbian 25.11.
+    validations:
+      required: true
+
+  - type: input
+    id: hardware
+    attributes:
+      label: Hardware and GPU
+      description: For example "ThinkPad T14, Intel Iris Xe" or "Raspberry Pi 5" or "Orange Pi 5, Mali-G610".
+    validations:
+      required: true
+
+  - type: dropdown
+    id: session
+    attributes:
+      label: Display server
+      description: Run `echo $XDG_SESSION_TYPE` if you're not sure.
+      options:
+        - X11
+        - Wayland
+        - Don't know
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Terminal output
+      description: |
+        Start the app from a terminal with `RUST_LOG=info retropie-rom-manager`, reproduce the problem, and paste what it prints. For blank windows or rendering problems, this is the most useful part.
+      render: shell
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: Screenshots
+      description: Optional. Drag images in here.

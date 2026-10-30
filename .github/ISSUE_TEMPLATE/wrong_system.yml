@@ -1,0 +1,66 @@
+name: Wrong system detected
+description: A ROM is flagged as the wrong system, or isn't flagged when it should be.
+labels: [bug, needs-triage]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Detection works from the file's extension, size and header, so these details are usually enough to reproduce it. **Never attach or link the ROM itself.**
+
+  - type: input
+    id: filename
+    attributes:
+      label: File name
+      description: Exactly as it is on disk, including the extension.
+      placeholder: "Crazy Taxi (USA).cdi"
+    validations:
+      required: true
+
+  - type: input
+    id: size
+    attributes:
+      label: File size in bytes
+      description: Run `stat -c %s "<file>"`.
+      placeholder: "715542528"
+    validations:
+      required: true
+
+  - type: input
+    id: actual
+    attributes:
+      label: Which system is it really for?
+      placeholder: "Dreamcast"
+    validations:
+      required: true
+
+  - type: input
+    id: detected
+    attributes:
+      label: What did the app say?
+      description: The system it suggested, or "nothing" if it wasn't flagged.
+      placeholder: "Suggested moving it to PlayStation"
+    validations:
+      required: true
+
+  - type: input
+    id: version
+    attributes:
+      label: App version
+      description: Shown in About.
+      placeholder: "2.1.0"
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything else?
+      description: For example, if it's a hack, a homebrew release, or inside a .zip with other files.
+
+  - type: checkboxes
+    id: no-rom
+    attributes:
+      label: Before submitting
+      options:
+        - label: I haven't attached or linked the ROM file.
+          required: true
