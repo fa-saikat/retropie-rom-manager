@@ -24,6 +24,7 @@ Then:
 ```sh
 cargo run      # debug build
 cargo test     # detection, grouping, scraping and launching
+cargo clippy --all-targets -- -D warnings
 cargo deb      # .deb in target/debian/, needs `cargo install cargo-deb`
 ```
 
@@ -37,11 +38,11 @@ Debug builds read a few `ROM_MANAGER_*` environment variables that open the app 
 
 - Branch from `main` and open the pull request against `main`. Keep each one to a single change.
 - Write commit subjects in the imperative, the way the history already reads: "Fix blank window on Mali GPUs", not "fixed" or "fixes".
-- Run `cargo test`, and try the change in the app if it's something you can see.
+- Run `cargo test` and `cargo clippy --all-targets -- -D warnings`, and try the change in the app if it's something you can see.
 - Update the README if you change behavior, requirements or known limitations.
 - Don't bump the version or edit `packaging/changelog`. That happens in a release PR.
 
-CI builds the amd64 and arm64 `.deb` packages for every pull request, then installs and removes them on Debian 12, Debian 13, Ubuntu 22.04 and Ubuntu 24.04 to check that their dependencies resolve. You can download the packages from the run's artifacts to test on real hardware.
+CI runs clippy and the tests on every pull request. It doesn't build packages for them. Those are built only for a release, so test your change locally before you push it. To build test packages for real hardware, a maintainer can start the CI workflow by hand from the Actions tab. That builds and test-installs both `.deb` files and keeps them as run artifacts for 3 days.
 
 ## Versioning
 
@@ -58,7 +59,7 @@ Some rules that keep the version history clean:
 - **Versions only go up.** CI refuses to release a version lower than the latest tag.
 - **Every release gets a new version, including packaging-only fixes.** The Debian revision always stays `-1`, so a fixed `2.1.0` package ships as `2.1.1-1`, not `2.1.0-2`.
 - **Tags come from publishing a release and are never moved or reused.** A release is the tag `vX.Y.Z` on main. CI drafts it, and publishing the draft creates the tag. Don't tag by hand.
-- **There are no pre-release versions.** Builds for testing come from pull request artifacts.
+- **There are no pre-release versions.** Test builds come from a manual run of the CI workflow.
 
 ## Releasing
 
@@ -77,7 +78,7 @@ Maintainers only.
    ```
 
 4. Commit as `release: bump to X.Y.Z` and open a pull request titled `release: X.Y.Z`. CI checks that the version goes up and that the changelog entry matches it.
-5. Merge once CI is green. The release workflow builds and test-installs both `.deb` files, then creates a draft release `vX.Y.Z` with them, `SHA256SUMS`, the changelog bullets and install commands.
+5. Merge once CI is green. CI then builds both `.deb` files and installs and removes them on Debian 12, Debian 13, Ubuntu 22.04 and Ubuntu 24.04 to check that their dependencies resolve. If they pass, it creates a draft release `vX.Y.Z` with them, `SHA256SUMS`, the changelog bullets and install commands.
 6. Check the draft on the Releases page, edit the notes if you like, and publish it. Publishing creates the `vX.Y.Z` tag.
 
 ## Code of conduct

@@ -9,11 +9,13 @@
 //! same result as scraping from the RetroPie menu.
 //!
 //! The flow mirrors RetroPie-Setup's `scriptmodules/supplementary/skyscraper.sh`:
-//!   1. *gather*   `Skyscraper -p <sys> -s <source> --flags … <rom files>`
-//!                 downloads data + media into Skyscraper's local cache
-//!   2. *generate* `Skyscraper -p <sys> --flags … -g <gamelists> -o <media>`
-//!                 writes gamelist.xml + media from the cache (offline)
-//! with the user's choices read from the same `skyscraper.cfg` that the
+//!
+//! 1. *gather*: `Skyscraper -p <sys> -s <source> --flags … <rom files>`
+//!    downloads data + media into Skyscraper's local cache.
+//! 2. *generate*: `Skyscraper -p <sys> --flags … -g <gamelists> -o <media>`
+//!    writes gamelist.xml + media from the cache (offline).
+//!
+//! The user's choices are read from the same `skyscraper.cfg` that the
 //! RetroPie menu edits, so both stay in agreement.
 //!
 //! Like `library`, this module has no GPUI dependency so it's unit-testable.
@@ -330,8 +332,7 @@ fn run_skyscraper(bin: &Path, args: &[OsString], progress: &dyn Fn(usize, usize)
     }
     let tail = stderr
         .lines()
-        .filter(|l| !l.trim().is_empty())
-        .last()
+        .rfind(|l| !l.trim().is_empty())
         .unwrap_or(&last_line);
     Err(anyhow!("Skyscraper exited with {:?}: {tail}", status.code()))
 }
