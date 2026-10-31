@@ -30,7 +30,7 @@ cargo deb      # .deb in target/debian/, needs `cargo install cargo-deb`
 
 If rustc crashes with a stack overflow while compiling `gpui-component`, set `RUST_MIN_STACK=16777216`. CI sets it too.
 
-Debug builds read a few `ROM_MANAGER_*` environment variables that open the app straight into a given system, dialog or view. They're listed at the end of the README's "Building from source" section.
+Debug builds read a few `ROM_MANAGER_*` environment variables that open the app straight into a given system, dialog or view. They're listed at the end of the README's "Building" section.
 
 `vendor/gpui-pre-wgpu` is a patched copy of a GPUI crate, for [zed#65765](https://github.com/zed-industries/zed/issues/65765). Leave it alone unless you're working on that fix, and expect it to go away once upstream has it.
 
