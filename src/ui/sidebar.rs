@@ -42,18 +42,26 @@ pub(super) fn system_glyph(system: &SystemDef, size: Pixels, color: Hsla) -> Any
 /// The plate stays light in dark mode too: the logos are drawn for white.
 pub(super) fn logo_plate(system: &SystemDef, plate: Size<Pixels>, radius: Pixels, cx: &App) -> Option<Div> {
     let path = assets::system_logo(system)?;
+    let (pad_x, pad_y) = (plate.height * 0.2, plate.height * 0.14);
+    // The image gets the plate's exact inner size: GPUI doesn't reliably
+    // resolve a percentage height here, and a logo taller than it is wide
+    // (Dreamcast, Game Gear) would then draw at its own size and spill out.
+    let border = px(1.);
+    let inner = size(plate.width - (pad_x + border) * 2., plate.height - (pad_y + border) * 2.);
     Some(
         div()
             .w(plate.width)
             .h(plate.height)
             .flex_shrink_0()
+            .flex()
+            .items_center()
+            .justify_center()
+            .overflow_hidden()
             .rounded(radius)
             .bg(white())
             .border_1()
             .border_color(cx.theme().border)
-            .px(plate.height * 0.2)
-            .py(plate.height * 0.14)
-            .child(img(path).size_full().object_fit(ObjectFit::Contain)),
+            .child(img(path).w(inner.width).h(inner.height).flex_shrink_0().object_fit(ObjectFit::Contain)),
     )
 }
 
