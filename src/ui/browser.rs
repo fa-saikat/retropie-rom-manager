@@ -19,6 +19,7 @@ use gpui_kit::*;
 
 use super::root::RootView;
 use super::scale::px;
+use super::shape;
 use crate::browse::{self, Entry, Listing, Place, PlaceKind};
 use crate::library;
 use crate::systems::SystemDef;
@@ -400,7 +401,7 @@ impl RootView {
             .child(
                 h_flex()
                     .gap(px(14.))
-                    .child(super::sidebar::system_tile(b.system, px(44.), px(22.), px(10.)))
+                    .child(super::sidebar::system_tile(b.system, px(44.), px(22.), shape::md()))
                     .child(div().flex_1().text_2xl().font_semibold().child(format!("Add ROMs to {}", b.system.display_name)))
                     .child(layout_switch(b.layout, &this)),
             )
@@ -424,7 +425,7 @@ impl RootView {
                         .h(px(28.))
                         .flex()
                         .items_center()
-                        .rounded(px(6.))
+                        .rounded(shape::sm())
                         .border_1()
                         .border_color(cx.theme().border)
                         .bg(cx.theme().sidebar)
@@ -450,7 +451,7 @@ impl RootView {
             .child(div().text_color(t.foreground).child(b.summary()))
             .child(
                 div()
-                    .rounded(px(10.))
+                    .rounded(t.radius + px(4.))
                     .border_2()
                     .border_color(if add_focused { accent } else { transparent_black() })
                     .p(px(2.))
@@ -584,7 +585,7 @@ fn place_row(
         .py(px(4.))
         .px(px(if m.full { 12. } else { 8. }))
         .gap(px(if m.full { 14. } else { 10. }))
-        .rounded(px(if m.full { 8. } else { 6. }))
+        .rounded(shape::sm())
         .border_2()
         .border_color(if focused { accent } else { transparent_black() })
         .text_size(px(if m.full { 17. } else { 14. }))
@@ -689,7 +690,7 @@ fn file_row(
         .flex_shrink_0()
         .px(px(if m.full { 14. } else { 8. }))
         .gap(px(if m.full { 16. } else { 10. }))
-        .rounded(px(if m.full { 10. } else { 6. }))
+        .rounded(shape::sm())
         .border_2()
         .border_color(if focused { accent } else { transparent_black() })
         .text_size(px(m.text))
@@ -814,7 +815,7 @@ fn open_dialog(window: &mut Window, cx: &mut Context<RootView>) {
                 h_flex()
                     .h(px(440.))
                     .items_stretch()
-                    .rounded(px(8.))
+                    .rounded(shape::md())
                     .border_1()
                     .border_color(t.border)
                     .overflow_hidden()

@@ -17,12 +17,12 @@ use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 
 use super::details;
-use super::root::{RootView, ViewMode};
+use super::root::{Page, RootView, ViewMode};
 use super::scale::px;
 use crate::library::{self, GameEntry};
 use crate::systems::{self, SystemDef};
 
-gpui_kit::actions!(nav, [Up, Down, Left, Right, Activate, Back, Play, Scrape, Remove, Leave]);
+gpui_kit::actions!(nav, [Up, Down, Left, Right, Activate, Back, Play, Scrape, Remove, Leave, PrevSystem, NextSystem]);
 
 /// Active while the main window itself has focus, so the letter keys never
 /// fire while typing in the search field.
@@ -95,6 +95,8 @@ pub enum HeaderItem {
     Search,
     /// The grid / list switch: Enter flips it.
     View,
+    /// A maker filter chip on the emulator library (`None` is "All").
+    Maker(Option<&'static str>),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -121,6 +123,12 @@ impl RootView {
     }
 
     pub(super) fn header_items(&self, fullscreen: bool) -> Vec<HeaderItem> {
+        if self.page == Page::Emulators {
+            return std::iter::once(HeaderItem::Maker(None))
+                .chain(systems::MAKERS.iter().map(|m| HeaderItem::Maker(Some(*m))))
+                .chain([HeaderItem::Search])
+                .collect();
+        }
         let mut items = Vec::new();
         if !fullscreen {
             items.push(HeaderItem::Folder);
@@ -137,6 +145,9 @@ impl RootView {
     }
 
     pub(super) fn library_items(&self) -> Vec<LibItem> {
+        if self.page == Page::Emulators {
+            return (0..self.emulator_cards().len()).map(LibItem::Game).collect();
+        }
         if self.games.is_empty() {
             return vec![LibItem::AddFirst];
         }
@@ -151,6 +162,9 @@ impl RootView {
     /// Columns in the library as it's drawn now: the grid's, or 1 for the
     /// list and the empty state.
     pub(super) fn library_columns(&self, window: &Window) -> usize {
+        if self.page == Page::Emulators {
+            return super::library::columns_for(window, super::emulators::CARD_MIN_WIDTH) as usize;
+        }
         if self.view_mode == ViewMode::List || self.games.is_empty() {
             return 1;
         }
@@ -181,6 +195,9 @@ impl RootView {
     }
 
     fn focused_game(&self) -> Option<GameEntry> {
+        if self.page == Page::Emulators {
+            return None;
+        }
         match self.focused_library()? {
             LibItem::Game(i) => self.visible_games().get(i).map(|g| (*g).clone()),
             _ => None,
@@ -267,6 +284,9 @@ impl RootView {
     }
 
     fn nav_up(&mut self, _: &Up, window: &mut Window, cx: &mut Context<Self>) {
+        if self.big_picture.is_some() {
+            return self.bp_move(0, -1, window, cx);
+        }
         if !self.wake(window, cx) {
             return;
         }
@@ -288,6 +308,9 @@ impl RootView {
     }
 
     fn nav_down(&mut self, _: &Down, window: &mut Window, cx: &mut Context<Self>) {
+        if self.big_picture.is_some() {
+            return self.bp_move(0, 1, window, cx);
+        }
         if !self.wake(window, cx) {
             return;
         }
@@ -316,6 +339,9 @@ impl RootView {
     }
 
     fn nav_left(&mut self, _: &Left, window: &mut Window, cx: &mut Context<Self>) {
+        if self.big_picture.is_some() {
+            return self.bp_move(-1, 0, window, cx);
+        }
         if !self.wake(window, cx) {
             return;
         }
@@ -338,6 +364,9 @@ impl RootView {
     }
 
     fn nav_right(&mut self, _: &Right, window: &mut Window, cx: &mut Context<Self>) {
+        if self.big_picture.is_some() {
+            return self.bp_move(1, 0, window, cx);
+        }
         if !self.wake(window, cx) {
             return;
         }
@@ -360,6 +389,9 @@ impl RootView {
     }
 
     fn nav_activate(&mut self, _: &Activate, window: &mut Window, cx: &mut Context<Self>) {
+        if self.big_picture.is_some() {
+            return self.bp_activate(window, cx);
+        }
         if !self.wake(window, cx) {
             return;
         }
@@ -372,7 +404,7 @@ impl RootView {
                     }
                     self.focus_library(fullscreen);
                 }
-                SideItem::AddEmulator => details::open_add_system(self, window, cx),
+                SideItem::AddEmulator => self.open_emulators(window, cx),
                 SideItem::RomsFolder => self.open_folder(library::roms_root(), cx),
                 SideItem::About => details::open_about(self, window, cx),
                 SideItem::Theme => self.toggle_theme(window, cx),
@@ -384,13 +416,20 @@ impl RootView {
                 HeaderItem::Scrape => self.start_scrape(Vec::new(), window, cx),
                 HeaderItem::AddRom => self.pick_and_install(window, cx),
                 HeaderItem::Notice => self.run_notice_action(window, cx),
-                HeaderItem::Search => self.search.update(cx, |s, cx| s.focus(window, cx)),
+                HeaderItem::Search => self.active_search().update(cx, |s, cx| s.focus(window, cx)),
                 HeaderItem::View => {
                     let mode = if self.view_mode == ViewMode::Grid { ViewMode::List } else { ViewMode::Grid };
                     self.set_view_mode(mode, cx);
                 }
+                HeaderItem::Maker(maker) => self.set_maker_filter(maker, cx),
             }
         } else if let Some(item) = self.focused_library() {
+            if self.page == Page::Emulators {
+                if let LibItem::Game(i) = item {
+                    self.activate_emulator(i, window, cx);
+                }
+                return;
+            }
             match item {
                 LibItem::AddFirst | LibItem::AddTile => self.pick_and_install(window, cx),
                 LibItem::Game(_) => {
@@ -403,6 +442,9 @@ impl RootView {
     }
 
     fn nav_back(&mut self, _: &Back, window: &mut Window, cx: &mut Context<Self>) {
+        if self.big_picture.is_some() {
+            return self.bp_back(cx);
+        }
         if !self.wake(window, cx) {
             return;
         }
@@ -415,6 +457,9 @@ impl RootView {
     }
 
     fn nav_play(&mut self, _: &Play, window: &mut Window, cx: &mut Context<Self>) {
+        if self.big_picture.is_some() {
+            return self.bp_play(window, cx);
+        }
         if !self.wake(window, cx) {
             return;
         }
@@ -426,6 +471,9 @@ impl RootView {
     }
 
     fn nav_scrape(&mut self, _: &Scrape, window: &mut Window, cx: &mut Context<Self>) {
+        if self.big_picture.is_some() {
+            return self.bp_scrape(window, cx);
+        }
         if !self.wake(window, cx) {
             return;
         }
@@ -448,6 +496,9 @@ impl RootView {
     }
 
     fn nav_remove(&mut self, _: &Remove, window: &mut Window, cx: &mut Context<Self>) {
+        if self.big_picture.is_some() {
+            return self.bp_delete(window, cx);
+        }
         if !self.wake(window, cx) {
             return;
         }
@@ -477,7 +528,11 @@ impl RootView {
 
     /// Backspace in the search field goes back once it's empty.
     fn nav_search_back(&mut self, _: &Back, window: &mut Window, cx: &mut Context<Self>) {
-        if self.query.is_empty() {
+        let empty = match self.page {
+            Page::System => self.query.is_empty(),
+            Page::Emulators => self.emu_query.is_empty(),
+        };
+        if empty {
             self.leave_search(window, cx);
         } else {
             cx.propagate();
@@ -486,8 +541,7 @@ impl RootView {
 
     /// Esc clears the search and goes back.
     fn nav_search_cancel(&mut self, _: &gpui_kit::component::dialog::Cancel, window: &mut Window, cx: &mut Context<Self>) {
-        self.query.clear();
-        self.search.update(cx, |s, cx| s.set_value("", window, cx));
+        self.clear_search(window, cx);
         self.leave_search(window, cx);
     }
 
@@ -502,6 +556,16 @@ impl RootView {
             .on_action(cx.listener(Self::nav_play))
             .on_action(cx.listener(Self::nav_scrape))
             .on_action(cx.listener(Self::nav_remove))
+            .on_action(cx.listener(|this, _: &PrevSystem, window, cx| {
+                if this.big_picture.is_some() {
+                    this.bp_switch(-1, window, cx);
+                }
+            }))
+            .on_action(cx.listener(|this, _: &NextSystem, window, cx| {
+                if this.big_picture.is_some() {
+                    this.bp_switch(1, window, cx);
+                }
+            }))
     }
 
     /// The search field, wrapped so its own keys reach `RootView`.

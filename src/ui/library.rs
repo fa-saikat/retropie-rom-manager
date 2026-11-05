@@ -19,19 +19,21 @@ use gpui_kit::*;
 
 use super::details;
 use super::nav::{self, HeaderItem, LibItem};
-use super::root::{RootView, ViewMode};
+use super::root::{Page, RootView, ViewMode};
 use super::scale::px;
-use super::sidebar::{system_glyph, system_tile};
+use super::shape;
+use super::sidebar::{logo_plate, system_glyph, system_tile};
 use crate::library::GameEntry;
 use crate::scraper::ScrapeStatus;
 use crate::systems::SystemDef;
 use crate::theme;
 
 const SIDEBAR_WIDTH: f32 = 240.;
-const CONTENT_PADDING: f32 = 24.;
-const CARD_MIN_WIDTH: f32 = 196.;
-const GRID_GAP: f32 = 14.;
-const ART_HEIGHT: f32 = 118.;
+pub(super) const CONTENT_PADDING: f32 = 24.;
+const CARD_MIN_WIDTH: f32 = 236.;
+pub(super) const GRID_GAP: f32 = 16.;
+/// The card's play button, on the art.
+const PLAY_SIZE: f32 = 64.;
 
 /// Rounded 0–1 rating to whole stars, as the kit's `Rating` draws them.
 fn stars(rating: f32) -> usize {
@@ -49,10 +51,9 @@ fn initials_tile(bg: Hsla, fg: Hsla, initials: String) -> Div {
         .size_full()
         .bg(bg)
         .flex()
-        .items_end()
-        .px(px(14.))
-        .pb(px(6.))
-        .text_size(px(40.))
+        .items_center()
+        .justify_center()
+        .text_size(px(56.))
         .font_bold()
         .text_color(fg)
         .child(initials)
@@ -60,14 +61,29 @@ fn initials_tile(bg: Hsla, fg: Hsla, initials: String) -> Div {
 
 /// "Looks like a GBA game" chip for a game sitting in the wrong system.
 fn wrong_system_tag(to: &'static SystemDef) -> Tag {
-    Tag::danger().small().child(format!("{} game?", to.short_name))
+    shape::small_tag(Tag::danger()).child(format!("{} game?", to.short_name))
 }
 
-/// As many ≥196px columns as fit next to the sidebar, in 1080p pixels.
-pub(super) fn grid_columns(window: &Window) -> u16 {
+/// Width left for a grid next to the sidebar, in 1080p pixels.
+fn grid_width(window: &Window) -> f32 {
     let width = window.viewport_size().width.as_f32() / super::scale::factor();
-    let available = width - SIDEBAR_WIDTH - 2. * CONTENT_PADDING;
-    ((available + GRID_GAP) / (CARD_MIN_WIDTH + GRID_GAP)).floor().max(1.) as u16
+    width - SIDEBAR_WIDTH - 2. * CONTENT_PADDING
+}
+
+/// As many columns of at least `min_width` as fit, in 1080p pixels.
+pub(super) fn columns_for(window: &Window, min_width: f32) -> u16 {
+    ((grid_width(window) + GRID_GAP) / (min_width + GRID_GAP)).floor().max(1.) as u16
+}
+
+/// As many ≥236px columns as fit next to the sidebar.
+pub(super) fn grid_columns(window: &Window) -> u16 {
+    columns_for(window, CARD_MIN_WIDTH)
+}
+
+/// One grid column's width in 1080p pixels: the art is square, so this is
+/// its height too.
+pub(super) fn column_width(window: &Window, columns: u16) -> f32 {
+    (grid_width(window) - GRID_GAP * (columns as f32 - 1.)) / columns as f32
 }
 
 /// What the notice's button does, when it has one.
@@ -103,15 +119,16 @@ impl RootView {
                     .overflow_y_scroll()
                     .track_scroll(&self.nav.scroll)
                     .vertical_scrollbar(&self.nav.scroll)
-                    .child(
-                    v_flex()
-                        .p(px(CONTENT_PADDING))
-                        .gap_5()
-                        .child(self.render_header(window.is_fullscreen(), cx))
-                        .children(self.render_notice(window.is_fullscreen(), cx))
-                        .child(self.render_toolbar(window.is_fullscreen(), cx))
-                        .child(self.render_library(window, cx)),
-                ),
+                    .child(match self.page {
+                        Page::System => v_flex()
+                            .p(px(CONTENT_PADDING))
+                            .gap_5()
+                            .child(self.render_header(window.is_fullscreen(), cx))
+                            .children(self.render_notice(window.is_fullscreen(), cx))
+                            .child(self.render_toolbar(window.is_fullscreen(), cx))
+                            .child(self.render_library(window, cx)),
+                        Page::Emulators => self.render_emulators(window, cx),
+                    }),
             )
     }
 
@@ -121,20 +138,33 @@ impl RootView {
         let file_count: usize = self.games.iter().map(|g| g.files.len()).sum();
         let scraping = self.scrape.as_ref().filter(|job| job.system.id == system.id);
 
-        let stats = h_flex()
+        let chip = |body: AnyElement| {
+            h_flex()
+                .h(px(28.))
+                .px(px(12.))
+                .gap_1p5()
+                .rounded(shape::sm())
+                .bg(t.secondary)
+                .text_xs()
+                .font_medium()
+                .text_color(t.muted_foreground)
+                .child(body)
+        };
+        let chips = h_flex()
+            .flex_wrap()
             .gap_1p5()
-            .mt_2()
-            .child(Tag::secondary().small().child(plural(self.games.len(), "game")))
-            .child(Tag::secondary().small().child(plural(file_count, "file")))
-            .child(
-                Tag::secondary()
-                    .small()
-                    .child(h_flex().gap_1().child(Icon::new(IconName::Folder).xsmall()).child(format!("roms/{}", system.folder))),
-            );
+            .child(chip(plural(self.games.len(), "game").into_any_element()))
+            .child(chip(plural(file_count, "file").into_any_element()))
+            .child(chip(
+                h_flex()
+                    .gap_1p5()
+                    .child(Icon::new(IconName::Folder).xsmall())
+                    .child(format!("roms/{}", system.folder))
+                    .into_any_element(),
+            ));
 
         let progress = scraping.map(|job| {
             v_flex()
-                .mt_3()
                 .w(px(380.))
                 .gap_1p5()
                 .child(
@@ -151,57 +181,61 @@ impl RootView {
         let folder = self.system_folder();
         let focused = self.focused_header(fullscreen);
         let ring = |item: HeaderItem, button: Button| nav::ringed(button, focused == Some(item), t.radius, t.ring);
-        h_flex()
-            .gap_4()
-            .items_start()
-            .child(system_tile(system, px(52.), px(26.), px(12.)))
-            .child(
-                v_flex()
-                    .flex_1()
-                    .min_w_0()
-                    .child(div().text_2xl().font_semibold().child(system.display_name))
-                    .child(
-                        div()
-                            .text_sm()
-                            .text_color(t.muted_foreground)
-                            .child("Drop files anywhere in the window, or pick them from disk. Zips are extracted automatically."),
-                    )
-                    .child(stats)
-                    .children(progress),
-            )
+        // Logo and title on one row with the actions at the right; the
+        // description, chips and progress below, from the logo's left edge.
+        v_flex()
+            .gap_3()
             .child(
                 h_flex()
-                    .gap_2()
-                    .when(!fullscreen, |buttons| {
-                        buttons.child(ring(
-                            HeaderItem::Folder,
-                            Button::new("open-system-folder")
-                                .outline()
-                                .icon(Icon::new(IconName::FolderOpen))
-                                .tooltip("Open in file manager")
-                                .on_click(cx.listener(move |this, _, _, cx| this.open_folder(folder.clone(), cx))),
-                        ))
-                    })
-                    .child(ring(
-                        HeaderItem::Scrape,
-                        Button::new("scrape-all")
-                            .outline()
-                            .icon(Icon::new(IconName::ImageDown))
-                            .label(if scraping.is_some() { "Scraping…" } else { "Scrape" })
-                            .loading(self.scrape.is_some())
-                            .disabled(!self.skyscraper_installed || self.games.is_empty())
-                            .tooltip("Fetch box art & metadata for every game")
-                            .on_click(cx.listener(|this, _, window, cx| this.start_scrape(Vec::new(), window, cx))),
-                    ))
-                    .child(ring(
-                        HeaderItem::AddRom,
-                        Button::new("add-rom")
-                            .primary()
-                            .icon(Icon::new(IconName::Plus))
-                            .label("Add ROM")
-                            .on_click(cx.listener(|this, _, window, cx| this.pick_and_install(window, cx))),
-                    )),
+                    .gap_5()
+                    .items_center()
+                    .child(
+                        logo_plate(system, size(px(200.), px(72.)), shape::md(), cx)
+                            .unwrap_or_else(|| system_tile(system, px(56.), px(28.), shape::md())),
+                    )
+                    .child(div().flex_1().min_w_0().truncate().text_2xl().font_medium().child(system.display_name))
+                    .child(
+                        h_flex()
+                            .gap_2()
+                            .when(!fullscreen, |buttons| {
+                                buttons.child(ring(
+                                    HeaderItem::Folder,
+                                    Button::new("open-system-folder")
+                                        .outline()
+                                        .icon(Icon::new(IconName::FolderOpen))
+                                        .tooltip("Open in file manager")
+                                        .on_click(cx.listener(move |this, _, _, cx| this.open_folder(folder.clone(), cx))),
+                                ))
+                            })
+                            .child(ring(
+                                HeaderItem::Scrape,
+                                Button::new("scrape-all")
+                                    .outline()
+                                    .icon(Icon::new(IconName::ImageDown))
+                                    .label(if scraping.is_some() { "Scraping…" } else { "Scrape" })
+                                    .loading(self.scrape.is_some())
+                                    .disabled(!self.skyscraper_installed || self.games.is_empty())
+                                    .tooltip("Fetch box art & metadata for every game")
+                                    .on_click(cx.listener(|this, _, window, cx| this.start_scrape(Vec::new(), window, cx))),
+                            ))
+                            .child(ring(
+                                HeaderItem::AddRom,
+                                Button::new("add-rom")
+                                    .primary()
+                                    .icon(Icon::new(IconName::Plus))
+                                    .label("Add ROM")
+                                    .on_click(cx.listener(|this, _, window, cx| this.pick_and_install(window, cx))),
+                            )),
+                    ),
             )
+            .child(
+                div()
+                    .text_sm()
+                    .text_color(t.muted_foreground)
+                    .child("Drop files anywhere in the window, or pick them from disk. Zips are extracted automatically."),
+            )
+            .child(chips)
+            .children(progress)
     }
 
     /// Icon tile + bold lead + muted sentence + optional action, tinted with
@@ -228,7 +262,7 @@ impl RootView {
                 div()
                     .size(px(28.))
                     .flex_shrink_0()
-                    .rounded(px(7.))
+                    .rounded(shape::sm())
                     .bg(tone)
                     .flex()
                     .items_center()
@@ -513,7 +547,10 @@ impl RootView {
         Empty::new()
             .header(
                 EmptyHeader::new()
-                    .media(EmptyMedia::new().child(system_tile(system, px(56.), px(28.), px(14.))))
+                    .media(EmptyMedia::new().child(
+                        logo_plate(system, size(px(260.), px(96.)), shape::md(), cx)
+                            .unwrap_or_else(|| system_tile(system, px(56.), px(28.), shape::md())),
+                    ))
                     .title(EmptyTitle::new().child(format!("No {} games yet", system.display_name)))
                     .description(EmptyDescription::new().child(format!(
                         "Add a ROM and it lands in ~/RetroPie/roms/{}, ready for EmulationStation. Multi-file games show up as one entry.",
@@ -540,7 +577,7 @@ impl RootView {
                             .children(system.extensions.iter().map(|ext| {
                                 div()
                                     .px_1()
-                                    .rounded(px(4.))
+                                    .rounded(shape::sm())
                                     .bg(t.muted)
                                     .text_xs()
                                     .font_family(t.mono_font_family.clone())
@@ -562,22 +599,25 @@ impl RootView {
     }
 
     fn render_grid(&self, games: &[&GameEntry], window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        let columns = grid_columns(window);
+        // Square art: as tall as the column is wide.
+        let art = px(column_width(window, columns));
         let grid = div()
             .grid()
-            .grid_cols(grid_columns(window))
+            .grid_cols(columns)
             .gap(px(GRID_GAP))
-            .when(self.query.trim().is_empty(), |grid| grid.child(self.render_add_tile(cx)))
-            .children(games.iter().enumerate().map(|(i, g)| self.render_card(i, g, cx)));
+            .when(self.query.trim().is_empty(), |grid| grid.child(self.render_add_tile(art, cx)))
+            .children(games.iter().enumerate().map(|(i, g)| self.render_card(i, g, art, cx)));
         self.reveal_focused(grid)
     }
 
-    fn render_add_tile(&self, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_add_tile(&self, art: Pixels, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.theme();
         let focused = self.focused_library() == Some(LibItem::AddTile);
         v_flex()
             .id("add-tile")
             .relative()
-            .min_h(px(ART_HEIGHT + 110.))
+            .min_h(art + px(78.))
             .p_4()
             .gap_2()
             .items_center()
@@ -591,7 +631,7 @@ impl RootView {
             .child(
                 div()
                     .size(px(44.))
-                    .rounded(px(10.))
+                    .rounded(shape::md())
                     .bg(theme::accent(self.selected.accent))
                     .flex()
                     .items_center()
@@ -609,7 +649,7 @@ impl RootView {
                     .children(self.selected.extensions.iter().map(|ext| {
                         div()
                             .px_1()
-                            .rounded(px(4.))
+                            .rounded(shape::sm())
                             .bg(t.muted)
                             .text_xs()
                             .font_family(t.mono_font_family.clone())
@@ -640,16 +680,18 @@ impl RootView {
             .child(
                 div()
                     .absolute()
-                    .left(px(14.))
-                    .bottom(px(6.))
-                    .text_size(px(40.))
+                    .inset_0()
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .text_size(px(56.))
                     .font_bold()
                     .text_color(t.muted_foreground)
                     .child(entry.monogram()),
             )
     }
 
-    fn render_card(&self, index: usize, entry: &GameEntry, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render_card(&self, index: usize, entry: &GameEntry, art_size: Pixels, cx: &mut Context<Self>) -> impl IntoElement {
         let t = cx.theme();
         let status = self.status_of(entry);
         let (title, tags) = entry.title_and_tags();
@@ -663,9 +705,22 @@ impl RootView {
         // A misplaced game would start in the wrong emulator.
         let can_play = self.can_run() && misplaced.is_none();
 
+        // Chips on the art: what's wrong with it, if anything.
+        let flags = h_flex()
+            .absolute()
+            .left(px(12.))
+            .top(px(12.))
+            .gap_1()
+            .children(misplaced.map(wrong_system_tag))
+            .map(|row| match status {
+                ScrapeStatus::NoMatch => row.child(shape::small_tag(Tag::warning()).child("No match")),
+                ScrapeStatus::NotScraped => row.child(shape::small_tag(Tag::warning()).child("No art")),
+                ScrapeStatus::Scraped(_) => row,
+            });
+
         let art = div()
             .relative()
-            .h(px(ART_HEIGHT))
+            .h(art_size)
             .overflow_hidden()
             .map(|art| match cover {
                 Some(path) => {
@@ -683,54 +738,21 @@ impl RootView {
                 }
                 None => art.child(placeholder),
             })
-            .child(
-                h_flex()
-                    .absolute()
-                    .left(px(10.))
-                    .top(px(10.))
-                    .gap_1()
-                    .px_1p5()
-                    .py(px(1.))
-                    .rounded(px(5.))
-                    .bg(t.background)
-                    .border_1()
-                    .border_color(t.border)
-                    .text_xs()
-                    .font_medium()
-                    .text_color(t.muted_foreground)
-                    .child(system_glyph(self.selected, px(11.), t.muted_foreground))
-                    .child(self.selected.short_name),
-            )
+            .child(flags)
+            // Delete, top right, on hover.
             .child(
                 div()
                     .absolute()
-                    .right(px(10.))
-                    .top(px(10.))
-                    .rounded(t.radius)
-                    .bg(t.background)
+                    .right(px(8.))
+                    .top(px(8.))
+                    .rounded(shape::sm())
+                    .bg(t.background.opacity(0.85))
                     .invisible()
                     .group_hover("card", |s| s.visible())
-                    .flex()
-                    .gap_1()
-                    .when(can_play, |overlay| {
-                        let entry = entry.clone();
-                        overlay.child(
-                            Button::new(("play", index))
-                                .primary()
-                                .small()
-                                .icon(Icon::new(IconName::Play))
-                                .tooltip("Play")
-                                .disabled(self.running.is_some())
-                                .on_click(cx.listener(move |this, _, window, cx| {
-                                    cx.stop_propagation();
-                                    this.run_game(&entry, window, cx);
-                                })),
-                        )
-                    })
                     .child({
                         let entry = entry.clone();
                         Button::new(("delete", index))
-                            .outline()
+                            .ghost()
                             .small()
                             .icon(Icon::new(IconName::Trash))
                             .tooltip("Delete")
@@ -739,29 +761,50 @@ impl RootView {
                                 details::confirm_delete_dialog(this, entry.clone(), window, cx);
                             }))
                     }),
-            );
+            )
+            // Play, bottom right, on hover: the card's one big action.
+            .when(can_play, |art| {
+                let entry = entry.clone();
+                art.child(
+                    div()
+                        .id(("play", index))
+                        .absolute()
+                        .right(px(16.))
+                        .bottom(px(16.))
+                        .size(px(PLAY_SIZE))
+                        .rounded(shape::sm())
+                        .bg(t.primary)
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .cursor_pointer()
+                        .invisible()
+                        .group_hover("card", |s| s.visible())
+                        .hover(|s| s.bg(t.primary_hover))
+                        .when(self.running.is_some(), |b| b.opacity(0.5))
+                        .child(Icon::new(IconName::Play).with_size(px(30.)).text_color(t.primary_foreground))
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            cx.stop_propagation();
+                            if this.running.is_none() {
+                                this.run_game(&entry, window, cx);
+                            }
+                        })),
+                )
+            });
 
-        // Row 1: what the game is. Row 2: rating (if scraped) and file count.
-        let (chips, rating) = match status {
-            ScrapeStatus::Scraped(m) => (
-                h_flex()
-                    .gap_1()
-                    .when_some(m.year.clone(), |row, year| row.child(Tag::secondary().small().child(year)))
-                    .when_some(m.genre.clone(), |row, genre: String| {
-                        row.child(Tag::secondary().small().child(short_genre(&genre).to_string()))
-                    }),
-                m.rating.map(|r| Rating::new(("rating", index)).value(stars(r)).xsmall().disabled(true)),
-            ),
-            other => (
-                h_flex()
-                    .gap_1()
-                    .children(tags.iter().take(2).map(|tag| Tag::secondary().small().child(tag.clone())))
-                    .child(Tag::warning().small().child(if other == ScrapeStatus::NoMatch { "No match" } else { "No art" })),
-                None,
-            ),
+        // Under the art: the title, then year and genre, or the ROM's tags.
+        let chips = match status {
+            ScrapeStatus::Scraped(m) => h_flex()
+                .gap_1()
+                .when_some(m.year.clone(), |row, year| row.child(shape::small_tag(Tag::secondary()).child(year)))
+                .when_some(m.genre.clone(), |row, genre: String| {
+                    row.child(shape::small_tag(Tag::secondary()).child(short_genre(&genre).to_string()))
+                }),
+            _ => h_flex()
+                .gap_1()
+                .children(tags.iter().take(2).map(|tag| shape::small_tag(Tag::secondary()).child(tag.clone())))
+                .when(tags.is_empty(), |row| row.child(shape::small_tag(Tag::secondary()).child("Not scraped"))),
         };
-
-        let chips = h_flex().gap_1().children(misplaced.map(wrong_system_tag)).child(chips);
 
         let open_entry = entry.clone();
         let focused = self.focused_library() == Some(LibItem::Game(index));
@@ -772,31 +815,19 @@ impl RootView {
             .rounded(t.radius_lg)
             .overflow_hidden()
             .border_1()
-            .border_color(if misplaced.is_some() { t.danger.opacity(0.6) } else { t.border.opacity(0.7) })
+            .border_color(if misplaced.is_some() { t.danger.opacity(0.6) } else { t.border })
             .bg(theme::card_bg(cx))
             .cursor_pointer()
-            .hover(|s| s.border_color(t.border))
+            .hover(|s| s.bg(t.secondary))
             .child(art)
             .child(
                 v_flex()
-                    .p_3()
+                    .px_4()
+                    .pt_3()
+                    .pb_4()
                     .gap_2()
-                    .child(div().h(px(38.)).text_sm().font_semibold().line_clamp(2).child(title))
-                    .child(div().overflow_hidden().child(chips))
-                    .child(
-                        h_flex()
-                            .h(px(16.))
-                            .justify_between()
-                            .child(div().children(rating))
-                            .child(
-                                h_flex()
-                                    .gap_1()
-                                    .text_xs()
-                                    .text_color(t.muted_foreground)
-                                    .child(Icon::new(IconName::Files).xsmall())
-                                    .child(plural(entry.files.len(), "file")),
-                            ),
-                    ),
+                    .child(div().text_size(px(15.)).font_semibold().truncate().child(title))
+                    .child(div().overflow_hidden().child(chips)),
             )
             .when(focused, |card| card.child(nav::ring(t.radius_lg, t.ring)))
             .on_click(cx.listener(move |this, _, window, cx| details::open_details(this, &open_entry, window, cx)))
@@ -833,9 +864,9 @@ impl RootView {
             let details_cell = match status {
                 ScrapeStatus::Scraped(m) => h_flex()
                     .gap_1()
-                    .when_some(m.genre.clone(), |row, g| row.child(Tag::secondary().small().child(short_genre(&g).to_string())))
+                    .when_some(m.genre.clone(), |row, g| row.child(shape::small_tag(Tag::secondary()).child(short_genre(&g).to_string())))
                     .when_some(m.rating, |row, r| row.child(Rating::new(("list-rating", i)).value(stars(r)).xsmall().disabled(true))),
-                _ => h_flex().gap_1().children(tags.iter().take(2).map(|tag| Tag::secondary().small().child(tag.clone()))),
+                _ => h_flex().gap_1().children(tags.iter().take(2).map(|tag| shape::small_tag(Tag::secondary()).child(tag.clone()))),
             };
             let details_cell = h_flex().gap_1().children(self.misplaced_as(entry).map(wrong_system_tag)).child(details_cell);
             let open_entry = (*entry).clone();
@@ -857,7 +888,7 @@ impl RootView {
                     div()
                         .size(px(36.))
                         .flex_shrink_0()
-                        .rounded(px(6.))
+                        .rounded(shape::sm())
                         .overflow_hidden()
                         .bg(t.muted)
                         .flex()

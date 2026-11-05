@@ -18,7 +18,6 @@ use ui::scale::{self, px};
 
 /// The library's search field (kit inputs use the `Input` context).
 const SEARCH: &str = "LibrarySearch > Input";
-const ADD_SYSTEM_SEARCH: &str = "AddSystemSearch > Input";
 
 fn main() {
     let options = match cli::parse(std::env::args().skip(1)) {
@@ -45,12 +44,17 @@ fn main() {
         .run(move |cx| {
             gpui_kit::init(cx);
             scale::init(cx);
+            if let Err(err) = cx.text_system().add_fonts(assets::fonts()) {
+                log::warn!("couldn't load the bundled fonts: {err}");
+            }
+            // Big Picture is drawn for the dark scheme only.
             let mode = match options.theme {
+                _ if options.big_picture => ThemeMode::Dark,
                 Some(cli::Theme::Dark) => ThemeMode::Dark,
                 Some(cli::Theme::Light) | None => ThemeMode::Light,
             };
             Theme::change(mode, None, cx);
-            scale::apply_to_theme(cx);
+            theme::apply(systems::SYSTEMS[0].accent, cx);
             // We keep the native title bar, so sheets can use the full height.
             Theme::update(cx, |t| t.sheet.margin_top = px(0.));
             cx.bind_keys([
@@ -76,6 +80,12 @@ fn main() {
                 KeyBinding::new("p", nav::Play, Some(nav::KEY_CONTEXT)),
                 KeyBinding::new("s", nav::Scrape, Some(nav::KEY_CONTEXT)),
                 KeyBinding::new("x", nav::Remove, Some(nav::KEY_CONTEXT)),
+                // Big Picture: switch system (L1/R1 on a gamepad mapped to keys).
+                KeyBinding::new("q", nav::PrevSystem, Some(nav::KEY_CONTEXT)),
+                KeyBinding::new("e", nav::NextSystem, Some(nav::KEY_CONTEXT)),
+                KeyBinding::new("pageup", nav::PrevSystem, Some(nav::KEY_CONTEXT)),
+                KeyBinding::new("pagedown", nav::NextSystem, Some(nav::KEY_CONTEXT)),
+                KeyBinding::new("escape", nav::Back, Some(nav::KEY_CONTEXT)),
                 // The search field: Down and Enter go on to the results,
                 // Backspace on an empty field and Esc go back.
                 KeyBinding::new("down", nav::Leave, Some(SEARCH)),
@@ -93,9 +103,6 @@ fn main() {
                 KeyBinding::new("s", nav::Scrape, Some(nav::SHEET_CONTEXT)),
                 KeyBinding::new("x", nav::Remove, Some(nav::SHEET_CONTEXT)),
                 KeyBinding::new("backspace", dialog::Cancel, Some("Sheet")),
-                KeyBinding::new("down", nav::Leave, Some(ADD_SYSTEM_SEARCH)),
-                KeyBinding::new("enter", nav::Leave, Some(ADD_SYSTEM_SEARCH)),
-                KeyBinding::new("backspace", nav::Back, Some(ADD_SYSTEM_SEARCH)),
             ]);
             cx.on_action(|_: &ui::Quit, cx| ui::request_quit(cx));
 
@@ -121,7 +128,8 @@ fn main() {
                 // Opening with fullscreen bounds isn't honoured on X11, so
                 // ask the window manager once the window exists. The app
                 // offers no way to toggle it afterwards.
-                if options.fullscreen {
+                // Big Picture is a TV mode, so it's always fullscreen.
+                if options.fullscreen || options.big_picture {
                     window.toggle_fullscreen();
                 }
                 cx.new(|cx| {
@@ -129,6 +137,9 @@ fn main() {
                     // No mouse is expected in fullscreen, so show where the keys are.
                     if options.fullscreen {
                         view.show_focus();
+                    }
+                    if options.big_picture {
+                        view.big_picture();
                     }
                     view
                 })

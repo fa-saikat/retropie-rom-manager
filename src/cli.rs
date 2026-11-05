@@ -6,6 +6,8 @@ use std::fmt;
 #[derive(Debug, Default, PartialEq)]
 pub struct Options {
     pub fullscreen: bool,
+    /// The TV mode: fullscreen and dark, laid out for a gamepad.
+    pub big_picture: bool,
     pub theme: Option<Theme>,
 }
 
@@ -48,6 +50,7 @@ pub fn help() -> String {
 {USAGE}
 
 Options:
+      --big-picture    Start in Big Picture, the TV mode (fullscreen, dark)
       --fullscreen     Run in fullscreen
       --theme <THEME>  Start in the light or dark theme [values: light, dark]
   -h, --help           Print this help and exit
@@ -73,6 +76,7 @@ pub fn parse(args: impl IntoIterator<Item = String>) -> Result<Command, Error> {
             "-h" | "--help" => return Ok(Command::Help),
             "-V" | "--version" => return Ok(Command::Version),
             "--fullscreen" if inline.is_none() => options.fullscreen = true,
+            "--big-picture" if inline.is_none() => options.big_picture = true,
             "--theme" => {
                 let value = inline.or_else(|| args.next()).ok_or(Error::MissingValue("--theme"))?;
                 options.theme = Some(match value.as_str() {
@@ -102,10 +106,17 @@ mod tests {
 
     #[test]
     fn fullscreen_and_theme() {
-        let expected = Command::Run(Options { fullscreen: true, theme: Some(Theme::Dark) });
+        let expected = Command::Run(Options { fullscreen: true, theme: Some(Theme::Dark), ..Default::default() });
         assert_eq!(parse_strs(&["--fullscreen", "--theme", "dark"]), Ok(expected));
-        let expected = Command::Run(Options { fullscreen: false, theme: Some(Theme::Light) });
+        let expected = Command::Run(Options { theme: Some(Theme::Light), ..Default::default() });
         assert_eq!(parse_strs(&["--theme=light"]), Ok(expected));
+    }
+
+    #[test]
+    fn big_picture() {
+        let expected = Command::Run(Options { big_picture: true, ..Default::default() });
+        assert_eq!(parse_strs(&["--big-picture"]), Ok(expected));
+        assert_eq!(parse_strs(&["--big-picture=1"]), Err(Error::Unexpected("--big-picture=1".into())));
     }
 
     #[test]

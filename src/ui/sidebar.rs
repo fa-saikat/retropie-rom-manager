@@ -17,8 +17,9 @@ use std::rc::Rc;
 
 use super::details;
 use super::nav::SideItem;
-use super::root::RootView;
+use super::root::{Page, RootView};
 use super::scale::px;
+use super::shape;
 use crate::assets;
 use crate::systems::{self, SystemDef};
 use crate::theme;
@@ -35,6 +36,25 @@ pub(super) fn system_glyph(system: &SystemDef, size: Pixels, color: Hsla) -> Any
             .into_any_element(),
         None => Icon::new(IconName::Gamepad2).with_size(size).text_color(color).into_any_element(),
     }
+}
+
+/// The system's logo on a light plate, or `None` when it has no logo file.
+/// The plate stays light in dark mode too: the logos are drawn for white.
+pub(super) fn logo_plate(system: &SystemDef, plate: Size<Pixels>, radius: Pixels, cx: &App) -> Option<Div> {
+    let path = assets::system_logo(system)?;
+    Some(
+        div()
+            .w(plate.width)
+            .h(plate.height)
+            .flex_shrink_0()
+            .rounded(radius)
+            .bg(white())
+            .border_1()
+            .border_color(cx.theme().border)
+            .px(plate.height * 0.2)
+            .py(plate.height * 0.14)
+            .child(img(path).size_full().object_fit(ObjectFit::Contain)),
+    )
 }
 
 /// Solid accent-coloured square with the system's glyph in white.
@@ -72,6 +92,8 @@ struct AddRow {
     available: usize,
     /// ...of which have games waiting for them.
     suggested: usize,
+    /// The emulator library is the page showing.
+    active: bool,
     focused: bool,
     on_click: Handler,
 }
@@ -127,12 +149,12 @@ impl SystemRow {
                         .top(px(10.))
                         .bottom(px(10.))
                         .w(px(3.))
-                        .rounded_r(px(2.))
+                        .rounded_r(shape::sm())
                         .bg(theme::accent(self.system.accent)),
                 )
             })
             .when(self.focused, |row| row.child(super::nav::ring(t.radius, t.ring)))
-            .child(system_tile(self.system, px(24.), px(14.), px(6.)))
+            .child(system_tile(self.system, px(24.), px(14.), shape::sm()))
             .child(div().flex_1().min_w_0().truncate().child(self.system.display_name))
             .when(self.flagged > 0, |row| {
                 row.child(div().size(px(6.)).flex_shrink_0().rounded_full().bg(t.danger))
@@ -184,16 +206,17 @@ impl AddRow {
             .rounded(t.radius)
             .border_1()
             .border_dashed()
-            .border_color(t.border)
+            .border_color(if self.active { transparent_black() } else { t.border })
             .text_sm()
             .cursor_pointer()
-            .text_color(t.sidebar_foreground.opacity(0.8))
+            .text_color(if self.active { t.sidebar_accent_foreground } else { t.sidebar_foreground.opacity(0.8) })
+            .when(self.active, |row| row.bg(t.sidebar_accent).font_medium())
             .hover(|s| s.bg(t.sidebar_accent).border_color(t.muted_foreground))
             .child(
                 div()
                     .size(px(24.))
                     .flex_shrink_0()
-                    .rounded(px(6.))
+                    .rounded(shape::sm())
                     .bg(t.muted)
                     .flex()
                     .items_center()
@@ -204,7 +227,7 @@ impl AddRow {
             .child(div().flex_1().min_w_0().truncate().child("Add emulator"))
             .child(if self.suggested > 0 {
                 // Systems with games already waiting for them.
-                Tag::danger().small().rounded_full().child(self.suggested.to_string()).into_any_element()
+                shape::small_tag(Tag::danger()).child(self.suggested.to_string()).into_any_element()
             } else {
                 div().text_xs().text_color(t.muted_foreground).child(self.available.to_string()).into_any_element()
             })
@@ -229,7 +252,7 @@ impl RootView {
                     .child(
                         div()
                             .size(px(32.))
-                            .rounded(px(8.))
+                            .rounded(shape::sm())
                             .bg(t.foreground)
                             .flex()
                             .items_center()
@@ -271,7 +294,7 @@ impl RootView {
                     system,
                     count: self.counts.get(system.id).copied().unwrap_or(0),
                     flagged: self.flagged_in(system),
-                    active: system.id == self.selected.id,
+                    active: self.page == Page::System && system.id == self.selected.id,
                     focused: is(SideItem::System(system)),
                     on_click: Rc::new(select),
                     on_remove: can_remove.then(|| Rc::new(remove) as Handler),
@@ -284,9 +307,10 @@ impl RootView {
             rows.push(Row::Add(AddRow {
                 available: missing.len(),
                 suggested,
+                active: self.page == Page::Emulators,
                 focused: is(SideItem::AddEmulator),
                 on_click: Rc::new(cx.listener(|this: &mut RootView, _: &ClickEvent, window, cx| {
-                    details::open_add_system(this, window, cx)
+                    this.open_emulators(window, cx)
                 })),
             }));
         }

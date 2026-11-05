@@ -1,9 +1,12 @@
+mod bigpicture;
 mod browser;
 mod details;
+mod emulators;
 mod library;
 pub mod nav;
 mod root;
 pub mod scale;
+pub mod shape;
 mod sidebar;
 
 pub use browser::KEY_CONTEXT as BROWSER_KEY_CONTEXT;
