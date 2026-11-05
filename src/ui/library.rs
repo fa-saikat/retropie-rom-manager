@@ -119,15 +119,27 @@ impl RootView {
                     .overflow_y_scroll()
                     .track_scroll(&self.nav.scroll)
                     .vertical_scrollbar(&self.nav.scroll)
-                    .child(match self.page {
-                        Page::System => v_flex()
-                            .p(px(CONTENT_PADDING))
-                            .gap_5()
-                            .child(self.render_header(window.is_fullscreen(), cx))
-                            .children(self.render_notice(window.is_fullscreen(), cx))
-                            .child(self.render_toolbar(window.is_fullscreen(), cx))
-                            .child(self.render_library(window, cx)),
-                        Page::Emulators => self.render_emulators(window, cx),
+                    .child({
+                        // Switching system or page fades the column in and
+                        // lifts it a few pixels into place.
+                        let key = match self.page {
+                            Page::System => format!("page-system-{}", self.selected.id),
+                            Page::Emulators => "page-emulators".to_string(),
+                        };
+                        match self.page {
+                            Page::System => v_flex()
+                                .p(px(CONTENT_PADDING))
+                                .gap_5()
+                                .child(self.render_header(window.is_fullscreen(), cx))
+                                .children(self.render_notice(window.is_fullscreen(), cx))
+                                .child(self.render_toolbar(window.is_fullscreen(), cx))
+                                .child(self.render_library(window, cx)),
+                            Page::Emulators => self.render_emulators(window, cx),
+                        }
+                        .relative()
+                        .with_animation(SharedString::from(key), super::motion::enter(), |c, d| {
+                            c.opacity(d).top(px(12. * (1. - d)))
+                        })
                     }),
             )
     }

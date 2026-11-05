@@ -62,6 +62,22 @@ body { font-family: var(--font); font-feature-settings: "cv05", "cv08", "ss03"; 
 }
 .fade { animation: fade var(--slow) var(--ease); }
 @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+/* ── Motion, matching the app (src/ui/motion.rs) ──
+   Entrance: 260ms, fast start, gentle stop, with a small rise or slide.
+   Follow-the-focus (row, tile sizes): a quick ease with no overshoot,
+   standing in for the app's critically damped spring. Uses the separate
+   `translate` property so it never fights a transform already in use. */
+:root { --enter: 260ms; --ease-enter: cubic-bezier(.22, 1, .36, 1); --spring: 380ms; --ease-spring: cubic-bezier(.25, 1, .5, 1); }
+@keyframes enter-rise  { from { opacity: 0; translate: 0 18px; } to { opacity: 1; translate: 0 0; } }
+@keyframes enter-lift  { from { opacity: 0; translate: 0 24px; } to { opacity: 1; translate: 0 0; } }
+@keyframes enter-slide { from { opacity: 0; translate: 16px 0; } to { opacity: 1; translate: 0 0; } }
+@keyframes enter-col   { from { opacity: 0; translate: 0 12px; } to { opacity: 1; translate: 0 0; } }
+.enter-rise  { animation: enter-rise  var(--enter) var(--ease-enter) both; }
+.enter-lift  { animation: enter-lift  var(--enter) var(--ease-enter) both; }
+.enter-slide { animation: enter-slide var(--enter) var(--ease-enter) both; }
+.enter-col   { animation: enter-col   var(--enter) var(--ease-enter) both; }
+@media (prefers-reduced-motion: reduce) { .enter-rise, .enter-lift, .enter-slide, .enter-col { animation: none; } }
+
 
 /* ── Top bar: system tabs left, clock right ── */
 .topbar { position: absolute; left: 96px; right: 96px; top: 48px; height: 56px; display: flex; align-items: center; gap: 8px; }
@@ -82,11 +98,11 @@ body { font-family: var(--font); font-feature-settings: "cv05", "cv08", "ss03"; 
 /* ── Tile row: the focused tile grows and its title sits beside it ── */
 .row-label { position: absolute; left: 96px; top: 148px; font-size: 20px; font-weight: 500; color: var(--muted); }
 .tiles-wrap { position: absolute; left: 96px; right: 0; top: 188px; height: 260px; }
-.tiles { position: absolute; left: 0; top: 0; display: flex; align-items: flex-start; gap: 20px; transition: transform var(--slow) var(--ease); }
+.tiles { position: absolute; left: 0; top: 0; display: flex; align-items: flex-start; gap: 20px; transition: transform var(--spring) var(--ease-spring); }
 .tile {
   flex: none; width: 160px; height: 160px; border-radius: var(--r-md); position: relative; overflow: hidden;
   display: grid; place-items: center; font-size: 52px; font-weight: 800; color: oklch(1 0 0 / .92);
-  box-shadow: 0 10px 30px oklch(0 0 0 / .35); transition: width var(--slow) var(--ease), height var(--slow) var(--ease), opacity var(--med);
+  box-shadow: 0 10px 30px oklch(0 0 0 / .35); transition: width var(--spring) var(--ease-spring), height var(--spring) var(--ease-spring), font-size var(--spring) var(--ease-spring), opacity var(--med);
 }
 .tiles.dim .tile:not(.focused) { opacity: .55; }
 .tiles .tile.past { opacity: 0 !important; }
@@ -95,7 +111,7 @@ body { font-family: var(--font); font-feature-settings: "cv05", "cv08", "ss03"; 
 .tile .no-art { position: absolute; left: 10px; top: 10px; font: 600 13px var(--detail); padding: 3px 7px; border-radius: var(--r-sm); background: oklch(0.9 0.08 85); color: oklch(0.32 0.07 70); }
 .tile-title {
   flex: none; max-width: 520px; overflow: hidden; text-overflow: ellipsis; align-self: flex-end; padding: 0 12px 6px 4px;
-  font-size: 30px; font-weight: 600; white-space: nowrap; animation: fade var(--slow) var(--ease);
+  font-size: 30px; font-weight: 600; white-space: nowrap;
 }
 .tile-title .sub { display: block; font-size: 18px; font-weight: 400; color: var(--muted); margin-top: 6px; }
 
@@ -400,11 +416,28 @@ function renderModal() {
   el.innerHTML = `<div class="modal"><h2>${m.title}</h2><p>${m.body}</p><div class="actions">${m.buttons.map((b, i) => `<button class="btn ${b.kind || ""} ${i === m.focus ? "focused" : ""}">${b.label}</button>`).join("")}</div></div>`;
 }
 
+let lastTab = "", lastFocus = "";
 function render() {
   const t = currentTab();
   $("#stage").style.setProperty("--seed", t.accent);
   renderTabs(); renderTiles(); renderHero(); renderInfo(); renderBg(); renderHints(); renderModal();
+  // A system switch lifts the row and the cards in; a new focused game
+  // brings its title and Play up, and slides the label in beside its tile.
+  const focusKey = `${t.id}:${tileIndex()}`;
+  if (t.id !== lastTab) {
+    for (const el of [$("#row-label"), $(".tiles-wrap"), $("#info")]) replay(el, "enter-lift");
+    lastTab = t.id;
+  }
+  if (focusKey !== lastFocus) {
+    replay($("#hero"), "enter-rise");
+    $(".tile-title")?.classList.add("enter-slide");
+    lastFocus = focusKey;
+  }
 }
+// Replay an entrance on `el`. Animations are keyed like the app's: they
+// only replay when what they're about (system, page, game) changes.
+function replay(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+
 
 // ── Actions ───────────────────────────────────────────────────────────
 let toastTimer;
