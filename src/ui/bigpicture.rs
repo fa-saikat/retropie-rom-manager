@@ -17,7 +17,10 @@ use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Icon, Sizable, StyledExt,
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 
+use std::time::Duration;
+
 use super::details;
+use super::motion;
 use super::root::RootView;
 use super::scale::px;
 use super::shape;
@@ -322,8 +325,12 @@ impl RootView {
                     div()
                         .absolute()
                         .inset_0()
-                        .opacity(0.38)
-                        .child(img(path).size_full().object_fit(ObjectFit::Cover)),
+                        .child(img(path.clone()).size_full().object_fit(ObjectFit::Cover))
+                        .with_animation(
+                            SharedString::from(format!("bp-cover-{}", path.display())),
+                            Animation::new(Duration::from_millis(420)).with_easing(ease_in_out),
+                            |c, d| c.opacity(0.38 * d),
+                        ),
                 ),
                 None => d.child(
                     div()
@@ -408,10 +415,15 @@ impl RootView {
             .child(div().flex_1())
             .child(exit);
 
-        let content: AnyElement = match game {
-            Some(_) => self.bp_library(window, cx).into_any_element(),
-            None => self.bp_empty(cx).into_any_element(),
-        };
+        // A system switch fades the whole area in and lifts it into place.
+        let content = match game {
+            Some(_) => self.bp_library(window, cx),
+            None => self.bp_empty(cx),
+        }
+        .relative()
+        .with_animation(SharedString::from(format!("bp-system-{}", self.selected.id)), motion::enter(), |c, d| {
+            c.opacity(d).top(px(24. * (1. - d)))
+        });
 
         // Controller hints, bottom right.
         let hints = h_flex()
@@ -450,14 +462,22 @@ impl RootView {
         let entry = &self.games[focus];
         let in_tiles = bp.zone == Zone::Tiles;
 
-        // Only the focused tile and the ones after it: the row scrolls so
-        // the focused tile sits at the left edge, like the PS5.
+        // The row glides on a spring so the focused tile sits at the left
+        // edge, like the PS5. Only tiles near the screen are drawn; a spacer
+        // stands in for the ones scrolled far off, so positions stay put and
+        // the spring has a steady target.
+        let sys = self.selected.id;
+        let step = TILE + TILE_GAP;
         let width = window.viewport_size().width.as_f32() / super::scale::factor();
-        let fit = ((width - 2. * EDGE - TILE_FOCUSED - 560.) / (TILE + TILE_GAP)).ceil().max(1.) as usize + 1;
-        let tiles = h_flex().gap(px(TILE_GAP)).items_start().children(
-            self.games.iter().enumerate().skip(focus).take(fit + 1).map(|(i, game)| {
+        let fit = ((width - 2. * EDGE - TILE_FOCUSED - 560.) / step).ceil().max(1.) as usize + 1;
+        let start = focus.saturating_sub(2);
+        let end = (focus + fit + 2).min(self.games.len());
+        let tiles = h_flex().items_start().child(div().flex_shrink_0().w(px(step * start as f32))).children(
+            self.games.iter().enumerate().skip(start).take(end - start).map(|(i, game)| {
                 let focused = i == focus;
-                let size = px(if focused { TILE_FOCUSED } else { TILE });
+                let target_size = px(if focused { TILE_FOCUSED } else { TILE });
+                // Tiles that scrolled past fade out as they leave
+                let target_opacity = if i < focus { 0. } else if focused || in_tiles { 1. } else { 0.55 };
                 let (title, _) = game.title_and_tags();
                 let status = self.status_of(game);
                 let cover = match status {
@@ -468,9 +488,7 @@ impl RootView {
                     .id(("bp-tile", i))
                     .relative()
                     .flex_shrink_0()
-                    .size(size)
                     .rounded(shape::md())
-                    .when(!focused && !in_tiles, |t| t.opacity(0.55))
                     .cursor_pointer()
                     .child(
                         div()
@@ -516,7 +534,12 @@ impl RootView {
                             bp.zone = Zone::Tiles;
                             cx.notify();
                         }
-                    }));
+                    }))
+                    // Grows when it takes focus, shrinks when it loses it
+                    .with_spring(SharedString::from(format!("bp-size-{sys}-{i}")), motion::spring().to(target_size), |t, s| t.size(s))
+                    .with_spring(SharedString::from(format!("bp-fade-{sys}-{i}")), motion::spring().to(target_opacity), |t, o| {
+                        t.map_element(|d| d.opacity(o))
+                    });
                 let label = focused.then(|| {
                     let sub = match status {
                         ScrapeStatus::Scraped(m) => {
@@ -531,9 +554,17 @@ impl RootView {
                         .pr(px(12.))
                         .child(div().truncate().text_size(px(30.)).font_semibold().child(title.clone()))
                         .child(div().text_size(px(18.)).text_color(t.muted_foreground).mt(px(6.)).child(sub))
+                        .with_animation(SharedString::from(format!("bp-label-{sys}-{i}")), motion::enter(), |l, d| {
+                            l.opacity(d).ml(px(16. * (1. - d)))
+                        })
                 });
-                h_flex().gap(px(TILE_GAP)).child(tile).children(label).into_any_element()
+                h_flex().mr(px(TILE_GAP)).gap(px(TILE_GAP)).child(tile).children(label).into_any_element()
             }),
+        );
+        let tiles = tiles.with_spring(
+            SharedString::from(format!("bp-row-{sys}")),
+            motion::spring().to(px(-step * focus as f32)),
+            |row, x| row.ml(x),
         );
 
         // The hero: title, chips, and Play.
@@ -610,6 +641,7 @@ impl RootView {
             .on_click(cx.listener(|this, _, window, cx| this.bp_play(window, cx)));
 
         let hero = v_flex()
+            .relative()
             .gap(px(20.))
             .max_w(px(1000.))
             .child(div().text_size(px(64.)).line_height(px(68.)).font_bold().line_clamp(2).child(title))
@@ -663,7 +695,11 @@ impl RootView {
                     )),
             )
             .child(div().mt(px(16.)).h(px(TILE_FOCUSED)).child(tiles))
-            .child(div().mt(px(64.)).child(hero))
+            .child(div().mt(px(64.)).child(hero.with_animation(
+                SharedString::from(format!("bp-hero-{sys}-{focus}")),
+                motion::enter(),
+                |h, d| h.opacity(d).top(px(18. * (1. - d))),
+            )))
             .child(div().flex_1())
             .child(div().mb(px(24.)).child(cards))
     }

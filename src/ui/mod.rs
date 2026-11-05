@@ -3,6 +3,7 @@ mod browser;
 mod details;
 mod emulators;
 mod library;
+pub mod motion;
 pub mod nav;
 mod root;
 pub mod scale;

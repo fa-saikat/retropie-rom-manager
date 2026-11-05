@@ -439,6 +439,22 @@ svg.i.lg { width: 24px; height: 24px; }
 .typescale div { display: flex; align-items: baseline; gap: var(--s6); padding: var(--s2) 0; border-bottom: 1px solid var(--outline-variant); }
 .typescale code { width: 220px; flex: none; font-family: var(--detail); font-size: 12px; color: var(--on-surface-variant); }
 .row-demo { display: flex; gap: var(--s3); flex-wrap: wrap; align-items: center; }
+
+/* ── Motion, matching the app (src/ui/motion.rs) ──
+   Entrance: 260ms, fast start, gentle stop, with a small rise or slide.
+   Follow-the-focus (row, tile sizes): a quick ease with no overshoot,
+   standing in for the app's critically damped spring. Uses the separate
+   `translate` property so it never fights a transform already in use. */
+:root { --enter: 260ms; --ease-enter: cubic-bezier(.22, 1, .36, 1); --spring: 380ms; --ease-spring: cubic-bezier(.25, 1, .5, 1); }
+@keyframes enter-rise  { from { opacity: 0; translate: 0 18px; } to { opacity: 1; translate: 0 0; } }
+@keyframes enter-lift  { from { opacity: 0; translate: 0 24px; } to { opacity: 1; translate: 0 0; } }
+@keyframes enter-slide { from { opacity: 0; translate: 16px 0; } to { opacity: 1; translate: 0 0; } }
+@keyframes enter-col   { from { opacity: 0; translate: 0 12px; } to { opacity: 1; translate: 0 0; } }
+.enter-rise  { animation: enter-rise  var(--enter) var(--ease-enter) both; }
+.enter-lift  { animation: enter-lift  var(--enter) var(--ease-enter) both; }
+.enter-slide { animation: enter-slide var(--enter) var(--ease-enter) both; }
+.enter-col   { animation: enter-col   var(--enter) var(--ease-enter) both; }
+@media (prefers-reduced-motion: reduce) { .enter-rise, .enter-lift, .enter-slide, .enter-col { animation: none; } }
 </style>
 </head>
 <body>
@@ -696,6 +712,17 @@ function renderContent() {
   }
 
   $("#content").innerHTML = header + notice + toolbar + body;
+  enterContent();
+}
+// Replay an entrance on `el`. Animations are keyed like the app's: they
+// only replay when what they're about (system, page, game) changes.
+function replay(el, cls) { el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+
+// Switching system or page fades the main column in and lifts it 12px.
+let lastPage = "";
+function enterContent() {
+  const key = state.page === "emulators" ? "emulators" : `system:${state.sys.id}`;
+  if (key !== lastPage) { replay($("#content"), "enter-col"); lastPage = key; }
 }
 
 function renderEmulators() {
@@ -757,6 +784,7 @@ function renderEmulators() {
       </section>`).join("")
     : `<div class="empty"><div class="title-l">No matches</div><div class="body-m muted">No system matches “${q}”.</div></div>`}
     <div class="body-s muted">Photos: Wikimedia Commons, mostly by Evan-Amos (public domain). Logos: Wikimedia Commons (public domain), trademarks of their owners.</div>`;
+  enterContent();
 }
 
 function renderSheet() {
