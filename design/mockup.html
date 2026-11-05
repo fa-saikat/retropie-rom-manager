@@ -1,0 +1,896 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ROM Manager · Material 3 mockup</title>
+<!-- Inter and Poppins, loaded from Google Fonts. Locally installed copies are used first. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=Poppins:wght@400;500;600&display=swap">
+<style>
+/* ──────────────────────────────────────────────────────────────────────
+   Design tokens
+   Material 3 roles and structure. Corners stay tight: 3px for controls
+   and small elements, 4px for containers. Full rounding only for dots.
+   Colour roles are derived live from the selected system's accent (the
+   "seed"), the same idea as Material You's dynamic colour.
+   ────────────────────────────────────────────────────────────────────── */
+:root {
+  --seed: #6b46c1;
+
+  /* Shape */
+  --r-sm: 3px;
+  --r-md: 4px;
+
+  /* Spacing, 4px grid */
+  --s1: 4px; --s2: 8px; --s3: 12px; --s4: 16px; --s5: 20px; --s6: 24px; --s8: 32px;
+
+  /* Type */
+  --font: "Inter", system-ui, sans-serif;
+  /* Detail text: key hints, file names, extensions, token names. No monospace anywhere. */
+  --detail: "Poppins", var(--font);
+
+  /* Motion */
+  --ease: cubic-bezier(.2, 0, 0, 1);
+  --fast: 120ms;
+  --med: 220ms;
+}
+
+/* Light scheme */
+.app[data-mode="light"] {
+  --primary:              oklch(from var(--seed) 0.50 clamp(0.05, c, 0.19) h);
+  --on-primary:           oklch(0.99 0 0);
+  --primary-container:    oklch(from var(--seed) 0.92 calc(c * 0.35) h);
+  --on-primary-container: oklch(from var(--seed) 0.30 calc(c * 0.8) h);
+  --secondary-container:  oklch(from var(--seed) 0.92 calc(c * 0.14) h);
+  --on-secondary-container: oklch(from var(--seed) 0.28 calc(c * 0.25) h);
+  --tertiary:             oklch(from var(--seed) 0.52 calc(c * 0.6) calc(h + 60));
+  --tertiary-container:   oklch(from var(--seed) 0.93 calc(c * 0.3) calc(h + 60));
+  --on-tertiary-container: oklch(from var(--seed) 0.30 calc(c * 0.6) calc(h + 60));
+
+  --surface:                  oklch(from var(--seed) 0.985 0.004 h);
+  --surface-container-lowest: oklch(1 0 0);
+  --surface-container-low:    oklch(from var(--seed) 0.968 0.008 h);
+  --surface-container:        oklch(from var(--seed) 0.955 0.010 h);
+  --surface-container-high:   oklch(from var(--seed) 0.940 0.012 h);
+  --surface-container-highest:oklch(from var(--seed) 0.925 0.014 h);
+  --on-surface:               oklch(from var(--seed) 0.22 0.012 h);
+  --on-surface-variant:       oklch(from var(--seed) 0.46 0.022 h);
+  --outline:                  oklch(from var(--seed) 0.68 0.020 h);
+  --outline-variant:          oklch(from var(--seed) 0.87 0.014 h);
+
+  --error:            oklch(0.53 0.19 27);
+  --error-container:  oklch(0.93 0.05 27);
+  --on-error-container: oklch(0.35 0.13 27);
+  --warning-container: oklch(0.94 0.06 85);
+  --on-warning-container: oklch(0.38 0.08 70);
+  --scrim: oklch(0 0 0 / 0.32);
+  --shadow: 0 1px 2px oklch(0 0 0 / 0.12), 0 4px 12px oklch(0 0 0 / 0.08);
+}
+
+/* Dark scheme */
+.app[data-mode="dark"] {
+  --primary:              oklch(from var(--seed) 0.80 calc(c * 0.6) h);
+  --on-primary:           oklch(from var(--seed) 0.25 calc(c * 0.6) h);
+  --primary-container:    oklch(from var(--seed) 0.36 calc(c * 0.6) h);
+  --on-primary-container: oklch(from var(--seed) 0.92 calc(c * 0.3) h);
+  --secondary-container:  oklch(from var(--seed) 0.32 calc(c * 0.18) h);
+  --on-secondary-container: oklch(from var(--seed) 0.90 calc(c * 0.12) h);
+  --tertiary:             oklch(from var(--seed) 0.80 calc(c * 0.5) calc(h + 60));
+  --tertiary-container:   oklch(from var(--seed) 0.33 calc(c * 0.4) calc(h + 60));
+  --on-tertiary-container: oklch(from var(--seed) 0.92 calc(c * 0.25) calc(h + 60));
+
+  --surface:                  oklch(from var(--seed) 0.17 0.008 h);
+  --surface-container-lowest: oklch(from var(--seed) 0.14 0.006 h);
+  --surface-container-low:    oklch(from var(--seed) 0.20 0.010 h);
+  --surface-container:        oklch(from var(--seed) 0.22 0.012 h);
+  --surface-container-high:   oklch(from var(--seed) 0.25 0.014 h);
+  --surface-container-highest:oklch(from var(--seed) 0.28 0.016 h);
+  --on-surface:               oklch(from var(--seed) 0.93 0.010 h);
+  --on-surface-variant:       oklch(from var(--seed) 0.76 0.020 h);
+  --outline:                  oklch(from var(--seed) 0.56 0.020 h);
+  --outline-variant:          oklch(from var(--seed) 0.36 0.016 h);
+
+  --error:            oklch(0.78 0.12 25);
+  --error-container:  oklch(0.36 0.10 27);
+  --on-error-container: oklch(0.92 0.04 27);
+  --warning-container: oklch(0.36 0.06 75);
+  --on-warning-container: oklch(0.92 0.06 85);
+  --scrim: oklch(0 0 0 / 0.5);
+  --shadow: 0 1px 2px oklch(0 0 0 / 0.4), 0 6px 16px oklch(0 0 0 / 0.35);
+}
+
+/* Type scale */
+.headline-s { font-size: 24px; line-height: 32px; font-weight: 500; letter-spacing: 0; }
+.title-l    { font-size: 20px; line-height: 28px; font-weight: 500; }
+.title-m    { font-size: 15px; line-height: 22px; font-weight: 600; letter-spacing: .1px; }
+.title-s    { font-size: 13px; line-height: 20px; font-weight: 600; letter-spacing: .1px; }
+.body-m     { font-size: 14px; line-height: 20px; }
+.body-s     { font-size: 12px; line-height: 16px; }
+.label-l    { font-size: 14px; line-height: 20px; font-weight: 500; letter-spacing: .1px; }
+.label-m    { font-size: 12px; line-height: 16px; font-weight: 500; letter-spacing: .4px; }
+.label-s    { font-size: 11px; line-height: 16px; font-weight: 500; letter-spacing: .5px; }
+.muted      { color: var(--on-surface-variant); }
+code, kbd, pre { font-family: var(--detail); }
+
+/* ── Page chrome (outside the app window) ───────────────────────────── */
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body {
+  font-family: var(--font);
+  font-optical-sizing: auto;
+  /* Inter: open digits and a disambiguated l, I and 1 */
+  font-feature-settings: "cv05", "cv08", "ss03";
+  background: #1b1b1f;
+  color: #e6e1e9;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 16px; gap: 12px;
+}
+.devbar {
+  display: flex; gap: 8px; align-items: center; font-size: 12px; color: #c9c5d0;
+  width: min(1440px, 100%);
+}
+.devbar .spacer { flex: 1; }
+.devbar button {
+  font: inherit; color: inherit; background: #2b2930; border: 1px solid #49454f;
+  border-radius: 3px; padding: 6px 10px; cursor: pointer;
+}
+.devbar button[aria-pressed="true"] { background: #e6e1e9; color: #1b1b1f; border-color: #e6e1e9; }
+
+/* ── App window ─────────────────────────────────────────────────────── */
+.app {
+  width: min(1440px, 100%); height: min(900px, calc(100vh - 70px)); min-height: 640px;
+  display: grid; grid-template-columns: 264px 1fr;
+  background: var(--surface); color: var(--on-surface);
+  border-radius: var(--r-md); overflow: hidden; position: relative;
+  transition: background var(--med) var(--ease), color var(--med) var(--ease);
+  border: 1px solid oklch(1 0 0 / 0.06);
+}
+svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+svg.i.sm { width: 14px; height: 14px; }
+svg.i.lg { width: 24px; height: 24px; }
+
+.app.no-anim, .app.no-anim * { transition: none !important; }
+
+/* State layer: a translucent tint of the content colour */
+.state { position: relative; isolation: isolate; cursor: pointer; }
+.state::after {
+  content: ""; position: absolute; inset: 0; border-radius: inherit; z-index: -1;
+  background: currentColor; opacity: 0; pointer-events: none;
+  transition: opacity var(--fast) var(--ease);
+}
+.state:hover::after { opacity: .08; }
+.state:active::after { opacity: .12; }
+.state:focus-visible, .focused { outline: 2px solid var(--primary); outline-offset: 2px; }
+
+/* ── Navigation drawer ──────────────────────────────────────────────── */
+.drawer {
+  background: var(--surface-container-low);
+  display: flex; flex-direction: column; min-height: 0;
+  padding: var(--s3) var(--s3) var(--s2);
+  border-right: 1px solid var(--outline-variant);
+}
+.brand { display: flex; align-items: center; gap: var(--s3); padding: var(--s2) var(--s2) var(--s4); }
+.brand-mark {
+  width: 32px; height: 32px; border-radius: var(--r-sm);
+  background: var(--on-surface); color: var(--surface);
+  display: grid; place-items: center;
+}
+.section-label { padding: var(--s2) var(--s3) var(--s1); color: var(--on-surface-variant); text-transform: uppercase; }
+.systems { flex: 1; overflow: auto; display: flex; flex-direction: column; gap: 2px; padding-right: 2px; }
+.nav-item {
+  display: flex; align-items: center; gap: var(--s3);
+  height: 44px; padding: 0 var(--s3); border-radius: var(--r-sm);
+  color: var(--on-surface-variant); border: 0; background: none; font: inherit; text-align: left; width: 100%;
+}
+.nav-item .name { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nav-item[aria-current="true"] {
+  background: var(--secondary-container); color: var(--on-secondary-container);
+}
+.nav-item[aria-current="true"] .name { font-weight: 600; }
+.nav-item[aria-current="true"]::before {
+  content: ""; position: absolute; left: 0; top: 10px; bottom: 10px; width: 3px;
+  border-radius: 0 var(--r-sm) var(--r-sm) 0; background: var(--primary);
+}
+.tile {
+  border-radius: var(--r-sm); display: grid; place-items: center; color: white; flex: none;
+  font-weight: 700;
+}
+.tile.big { border-radius: var(--r-md); }
+.count { font-variant-numeric: tabular-nums; }
+.badge-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--error); }
+.nav-add {
+  margin-top: var(--s2); border: 1px dashed var(--outline); color: var(--on-surface-variant);
+}
+.drawer-footer { border-top: 1px solid var(--outline-variant); margin-top: var(--s2); padding-top: var(--s2); display: flex; flex-direction: column; gap: 2px; }
+.kbd { font-family: var(--detail); font-size: 11px; color: var(--on-surface-variant); }
+
+/* ── Main column ────────────────────────────────────────────────────── */
+.main { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.topbar {
+  height: 64px; flex: none; display: flex; align-items: center; gap: var(--s3);
+  padding: 0 var(--s6);
+}
+.search {
+  flex: 0 1 420px; height: 40px; display: flex; align-items: center; gap: var(--s2);
+  padding: 0 var(--s3); border-radius: var(--r-sm);
+  background: var(--surface-container-high); color: var(--on-surface-variant);
+  border-bottom: 1px solid var(--outline);
+}
+.search input { all: unset; flex: 1; color: var(--on-surface); font-size: 14px; }
+.search input::placeholder { color: var(--on-surface-variant); }
+.topbar .spacer { flex: 1; }
+.content { flex: 1; overflow: auto; padding: var(--s2) var(--s6) var(--s8); display: flex; flex-direction: column; gap: var(--s5); }
+
+/* Buttons */
+.btn {
+  height: 40px; padding: 0 var(--s5); border-radius: var(--r-sm);
+  display: inline-flex; align-items: center; gap: var(--s2);
+  font: 500 14px/20px var(--font); letter-spacing: .1px;
+  border: 0; background: none; color: var(--primary); white-space: nowrap;
+}
+.btn.filled { background: var(--primary); color: var(--on-primary); }
+.btn.filled:hover { box-shadow: 0 1px 2px oklch(0 0 0 / .2); }
+.btn.tonal { background: var(--secondary-container); color: var(--on-secondary-container); }
+.btn.outlined { border: 1px solid var(--outline); color: var(--on-surface-variant); }
+.btn.outlined .i { color: var(--primary); }
+.btn.danger { color: var(--error); border-color: color-mix(in oklch, var(--error) 50%, transparent); }
+.btn.danger .i { color: var(--error); }
+.btn.sm { height: 32px; padding: 0 var(--s3); font-size: 13px; }
+.icon-btn {
+  width: 40px; height: 40px; border-radius: var(--r-sm); border: 0; background: none;
+  display: grid; place-items: center; color: var(--on-surface-variant);
+}
+.icon-btn.outlined { border: 1px solid var(--outline); }
+.icon-btn.sm { width: 32px; height: 32px; }
+
+/* Chips */
+.chip {
+  height: 28px; padding: 0 var(--s3); border-radius: var(--r-sm);
+  display: inline-flex; align-items: center; gap: 6px;
+  border: 1px solid var(--outline-variant); color: var(--on-surface-variant);
+  font: 500 12px/16px var(--font); letter-spacing: .3px; background: none;
+}
+.chip.sm { height: 22px; padding: 0 var(--s2); font-size: 11px; }
+.chip.tonal { border-color: transparent; background: var(--surface-container-highest); }
+.chip.warn { border-color: transparent; background: var(--warning-container); color: var(--on-warning-container); }
+.chip.err { border-color: transparent; background: var(--error-container); color: var(--on-error-container); }
+.chip.detail { font-family: var(--detail); font-weight: 400; }
+
+/* Header */
+.header { display: flex; gap: var(--s5); align-items: flex-start; }
+.header .text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--s1); }
+.header .chips { display: flex; gap: 6px; margin-top: var(--s2); flex-wrap: wrap; }
+.header .actions { display: flex; gap: var(--s2); }
+/* System header: logo and title on one row, description and chips below,
+   starting at the logo's left edge */
+.system-header { flex-direction: column; align-items: stretch; gap: var(--s3); }
+.system-header .row { display: flex; align-items: center; gap: var(--s5); }
+.system-header .row .title { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.system-header .text { gap: var(--s2); }
+.system-header .chips { margin-top: 0; }
+.progress { margin-top: var(--s3); width: 380px; display: flex; flex-direction: column; gap: 6px; }
+.progress .track { height: 4px; border-radius: var(--r-sm); background: var(--primary-container); overflow: hidden; }
+.progress .bar { height: 100%; width: 62%; background: var(--primary); border-radius: var(--r-sm); }
+
+/* Logo plate: the system's real logo on a light plate, readable in both modes */
+.logo-plate {
+  width: 200px; height: 72px; flex: none; border-radius: var(--r-md);
+  background: oklch(0.99 0 0); border: 1px solid var(--outline-variant);
+  display: grid; place-items: center; padding: var(--s3) var(--s4);
+}
+/* Fill the plate's content box and scale inside it, whatever size the SVG declares */
+.logo-plate { overflow: hidden; position: relative; }
+.logo-plate img {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  padding: inherit; box-sizing: border-box; object-fit: contain; display: block;
+}
+.logo-plate.lg { width: 260px; height: 96px; }
+
+/* Emulator library */
+.filters { display: flex; gap: var(--s2); flex-wrap: wrap; }
+.chip.filter { height: 32px; cursor: pointer; font-size: 13px; color: var(--on-surface-variant); }
+.chip.filter .n { color: var(--on-surface-variant); opacity: .7; font-weight: 400; }
+.chip.filter[aria-pressed="true"] { background: var(--secondary-container); color: var(--on-secondary-container); border-color: transparent; }
+.emu-group { display: flex; flex-direction: column; gap: var(--s3); }
+.group-head { display: flex; gap: var(--s2); align-items: baseline; }
+.group-head .hot { color: var(--error); }
+.emu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: var(--s4); }
+.emu-card {
+  border-radius: var(--r-md); border: 1px solid var(--outline-variant); background: var(--surface-container-low);
+  overflow: hidden; display: flex; flex-direction: column; color: var(--on-surface);
+}
+.emu-card:hover { border-color: var(--outline); }
+.emu-card.suggested { border-color: color-mix(in oklch, var(--error) 55%, transparent); }
+.emu-card.added { background: var(--surface); }
+.emu-card .well { position: relative; aspect-ratio: 16 / 10; background: #ececef; display: grid; place-items: center; }
+.emu-card .well img { width: 100%; height: 100%; object-fit: contain; }
+.emu-card.added .well img { opacity: .55; }
+.emu-card .badges { position: absolute; left: var(--s2); top: var(--s2); display: flex; gap: 4px; }
+.emu-card .badges .chip.tonal { background: oklch(0.99 0 0 / .92); color: #1d1b20; }
+.emu-action { position: absolute; right: var(--s3); bottom: var(--s3); opacity: 0; transform: translateY(4px); transition: all var(--fast) var(--ease); box-shadow: var(--shadow); }
+.emu-card:hover .emu-action, .emu-card:focus-within .emu-action { opacity: 1; transform: none; }
+.emu-card .caption { display: flex; align-items: center; gap: var(--s3); padding: var(--s3); }
+.emu-card .caption .text { min-width: 0; flex: 1; }
+.emu-card .name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.emu-card .status { display: flex; align-items: center; gap: 6px; }
+.dot { width: 6px; height: 6px; border-radius: 50%; background: var(--outline); flex: none; }
+.dot.on { background: oklch(0.62 0.15 150); }
+.logo-plate.sm { width: 76px; height: 36px; padding: 4px 6px; }
+.logo-fallback { display: none; align-items: center; gap: var(--s2); }
+.logo-plate.missing img { display: none; }
+.logo-plate.missing .logo-fallback { display: flex; }
+.logo-plate.sm .logo-fallback .tile { width: 24px !important; height: 24px !important; font-size: 9px !important; }
+.logo-plate.sm .logo-fallback .title-s { display: none; }
+
+/* Notice card */
+.notice {
+  display: flex; align-items: center; gap: var(--s4); padding: var(--s4);
+  border-radius: var(--r-md); background: var(--tertiary-container); color: var(--on-tertiary-container);
+}
+.notice .ic { width: 36px; height: 36px; border-radius: var(--r-sm); background: var(--tertiary); color: var(--surface); display: grid; place-items: center; flex: none; }
+.notice .body { flex: 1; }
+.notice .btn { color: var(--on-tertiary-container); }
+
+/* Toolbar */
+.toolbar { display: flex; align-items: center; gap: var(--s3); }
+.toolbar .spacer { flex: 1; }
+.segmented { display: inline-flex; border: 1px solid var(--outline); border-radius: var(--r-sm); overflow: hidden; }
+.segmented button {
+  height: 32px; padding: 0 var(--s3); border: 0; background: none; color: var(--on-surface);
+  display: inline-flex; align-items: center; gap: 6px; font: 500 13px var(--font); border-radius: 0;
+}
+.segmented button + button { border-left: 1px solid var(--outline); }
+.segmented button[aria-pressed="true"] { background: var(--secondary-container); color: var(--on-secondary-container); }
+
+/* Grid */
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: var(--s5); }
+.card {
+  border-radius: var(--r-md); background: var(--surface-container-low);
+  border: 1px solid var(--outline-variant); overflow: hidden; display: flex; flex-direction: column;
+  transition: background var(--fast) var(--ease), transform var(--med) var(--ease);
+  color: var(--on-surface);
+}
+.card:hover { background: var(--surface-container); }
+.card[aria-selected="true"] { border-color: var(--primary); box-shadow: inset 0 0 0 1px var(--primary); }
+.art {
+  aspect-ratio: 1 / 1; position: relative; display: grid; place-items: center;
+  font-size: 56px; font-weight: 700; letter-spacing: 1px; color: oklch(1 0 0 / .92);
+}
+.art .play {
+  position: absolute; right: var(--s4); bottom: var(--s4);
+  width: 64px; height: 64px; border-radius: var(--r-sm); border: 0;
+  background: var(--primary); color: var(--on-primary); display: grid; place-items: center;
+  opacity: 0; transform: translateY(4px); transition: all var(--fast) var(--ease); box-shadow: var(--shadow);
+}
+.card:hover .play, .card.focused .play { opacity: 1; transform: none; }
+.art .play svg.i { width: 30px; height: 30px; }
+.art .flag { position: absolute; left: var(--s3); top: var(--s3); }
+.card .meta { padding: var(--s3) var(--s4) var(--s4); display: flex; flex-direction: column; gap: var(--s2); }
+.card .title { font-size: 15px; line-height: 22px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card .tags { display: flex; gap: 4px; flex-wrap: wrap; }
+.add-tile {
+  border: 1px dashed var(--outline); background: none; border-radius: var(--r-md);
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--s2);
+  color: var(--on-surface); min-height: 340px; padding: var(--s4); text-align: center;
+}
+.add-tile .plus { width: 44px; height: 44px; border-radius: var(--r-md); background: var(--primary); color: var(--on-primary); display: grid; place-items: center; }
+.add-tile .exts { display: flex; gap: 4px; flex-wrap: wrap; justify-content: center; max-width: 170px; }
+
+/* List */
+.list { border: 1px solid var(--outline-variant); border-radius: var(--r-md); overflow: hidden; }
+.list .row { display: grid; grid-template-columns: 44px 1fr 220px 64px 88px; align-items: center; gap: var(--s3); padding: var(--s2) var(--s4); border-top: 1px solid var(--outline-variant); }
+.list .row:first-child { border-top: 0; background: var(--surface-container); color: var(--on-surface-variant); }
+.list .row:not(:first-child):hover { background: var(--surface-container-low); }
+.list .thumb { width: 36px; height: 36px; border-radius: var(--r-sm); display: grid; place-items: center; color: white; font-weight: 700; font-size: 13px; }
+.list .acts { display: flex; gap: 2px; justify-content: flex-end; }
+
+/* Empty state */
+.empty { border: 1px dashed var(--outline); border-radius: var(--r-md); padding: 56px; display: flex; flex-direction: column; align-items: center; gap: var(--s3); text-align: center; }
+
+/* Side sheet */
+.scrim { position: absolute; inset: 0; background: var(--scrim); opacity: 0; pointer-events: none; transition: opacity var(--med) var(--ease); }
+.sheet {
+  position: absolute; top: 0; right: 0; bottom: 0; width: 420px;
+  background: var(--surface-container-low); border-left: 1px solid var(--outline-variant);
+  box-shadow: var(--shadow); display: flex; flex-direction: column;
+  transform: translateX(100%); transition: transform var(--med) var(--ease);
+}
+.app.sheet-open .sheet { transform: none; }
+.app.sheet-open .scrim { opacity: 1; pointer-events: auto; }
+.sheet header { display: flex; align-items: center; gap: var(--s2); padding: var(--s3) var(--s3) var(--s3) var(--s5); }
+.sheet header .t { flex: 1; }
+.sheet .body { flex: 1; overflow: auto; padding: 0 var(--s5) var(--s5); display: flex; flex-direction: column; gap: var(--s4); }
+.sheet .hero { display: flex; gap: var(--s4); }
+.sheet .hero .art { width: 132px; flex: none; border-radius: var(--r-md); font-size: 30px; }
+.dl { display: grid; grid-template-columns: 96px 1fr; gap: 6px var(--s3); font-size: 13px; }
+.dl dt { color: var(--on-surface-variant); }
+.dl dd { margin: 0; }
+.files { border: 1px solid var(--outline-variant); border-radius: var(--r-md); }
+.files div { display: flex; justify-content: space-between; padding: var(--s2) var(--s3); font-family: var(--detail); font-size: 12px; }
+.files div + div { border-top: 1px solid var(--outline-variant); }
+.sheet footer { display: flex; gap: var(--s2); padding: var(--s3) var(--s5); border-top: 1px solid var(--outline-variant); align-items: center; }
+.sheet footer .spacer { flex: 1; }
+.rating { color: var(--primary); letter-spacing: 2px; }
+
+/* Snackbar */
+.snackbar {
+  position: absolute; left: 50%; bottom: var(--s6); transform: translate(-50%, 16px);
+  min-width: 340px; display: flex; align-items: center; gap: var(--s3);
+  padding: var(--s2) var(--s2) var(--s2) var(--s4); border-radius: var(--r-sm);
+  background: var(--on-surface); color: var(--surface); box-shadow: var(--shadow);
+  opacity: 0; pointer-events: none; transition: all var(--med) var(--ease);
+}
+.snackbar.show { opacity: 1; transform: translate(-50%, 0); pointer-events: auto; }
+.snackbar .btn { color: oklch(from var(--primary) 0.82 calc(c * .6) h); height: 36px; padding: 0 var(--s3); }
+
+/* ── Tokens page ────────────────────────────────────────────────────── */
+.tokens { grid-column: 1 / -1; overflow: auto; padding: var(--s8); display: none; flex-direction: column; gap: var(--s8); }
+.app.show-tokens .drawer, .app.show-tokens .main { display: none; }
+.app.show-tokens .tokens { display: flex; }
+.tokens h2 { margin: 0 0 var(--s3); }
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: var(--s2); }
+.swatch { border-radius: var(--r-md); padding: var(--s3); height: 84px; display: flex; flex-direction: column; justify-content: space-between; border: 1px solid var(--outline-variant); }
+.swatch code { font-family: var(--detail); font-size: 11px; opacity: .8; }
+.shapes { display: flex; gap: var(--s6); align-items: flex-end; }
+.shapes .s { display: flex; flex-direction: column; gap: var(--s2); align-items: center; }
+.shapes .box { width: 96px; height: 96px; background: var(--primary-container); border: 1px solid var(--primary); }
+.typescale div { display: flex; align-items: baseline; gap: var(--s6); padding: var(--s2) 0; border-bottom: 1px solid var(--outline-variant); }
+.typescale code { width: 220px; flex: none; font-family: var(--detail); font-size: 12px; color: var(--on-surface-variant); }
+.row-demo { display: flex; gap: var(--s3); flex-wrap: wrap; align-items: center; }
+</style>
+</head>
+<body>
+
+<div class="devbar">
+  <strong>Mockup controls</strong>
+  <button id="view-app" aria-pressed="true">App</button>
+  <button id="view-tokens" aria-pressed="false">Design tokens</button>
+  <span class="spacer"></span>
+  <button id="toggle-scrape" aria-pressed="false">Scraping in progress</button>
+  <button id="toggle-mode" aria-pressed="false">Dark mode</button>
+</div>
+
+<div class="app no-anim" id="app" data-mode="light">
+  <!-- Navigation drawer -->
+  <nav class="drawer">
+    <div class="brand">
+      <div class="brand-mark"><svg class="i"><use href="#ic-gamepad"/></svg></div>
+      <div>
+        <div class="title-s">ROM Manager</div>
+        <div class="body-s muted">RetroPie · 2.3.0</div>
+      </div>
+    </div>
+    <div class="section-label label-s">Systems</div>
+    <div class="systems" id="systems"></div>
+    <button class="nav-item nav-add state" id="nav-add">
+      <span class="tile" style="width:24px;height:24px;background:none;color:inherit"><svg class="i sm"><use href="#ic-plus"/></svg></span>
+      <span class="name label-l">Add emulator</span>
+      <span class="chip sm err" id="nav-add-badge" title="Systems with games waiting">2</span>
+    </button>
+    <div class="drawer-footer">
+      <button class="nav-item state" id="drawer-mode"><svg class="i"><use href="#ic-moon"/></svg><span class="name label-l">Dark mode</span></button>
+      <button class="nav-item state"><svg class="i"><use href="#ic-info"/></svg><span class="name label-l">About</span></button>
+      <button class="nav-item state"><svg class="i"><use href="#ic-exit"/></svg><span class="name label-l">Quit</span><span class="kbd">Ctrl+Q</span></button>
+    </div>
+  </nav>
+
+  <!-- Main column -->
+  <section class="main">
+    <div class="topbar">
+      <label class="search"><svg class="i"><use href="#ic-search"/></svg><input id="search" placeholder="Search games"><span class="kbd">/</span></label>
+      <span class="spacer"></span>
+      <button class="icon-btn state" title="Keyboard shortcuts"><svg class="i"><use href="#ic-keyboard"/></svg></button>
+    </div>
+    <div class="content" id="content"></div>
+  </section>
+
+  <!-- Tokens page -->
+  <section class="tokens" id="tokens"></section>
+
+  <div class="scrim" id="scrim"></div>
+  <aside class="sheet" id="sheet" aria-label="Game details"></aside>
+  <div class="snackbar" id="snackbar"><span class="body-m" id="snack-text"></span><span style="flex:1"></span><button class="btn state">Undo</button></div>
+</div>
+
+<!-- Icons, Lucide-style strokes -->
+<svg width="0" height="0" style="position:absolute">
+  <symbol id="ic-gamepad" viewBox="0 0 24 24"><path d="M6 12h4M8 10v4M15 13h.01M18 11h.01"/><rect x="2" y="6" width="20" height="12" rx="3"/></symbol>
+  <symbol id="ic-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+  <symbol id="ic-moon" viewBox="0 0 24 24"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9z"/></symbol>
+  <symbol id="ic-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></symbol>
+  <symbol id="ic-info" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></symbol>
+  <symbol id="ic-exit" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></symbol>
+  <symbol id="ic-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></symbol>
+  <symbol id="ic-keyboard" viewBox="0 0 24 24"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M6 9h.01M10 9h.01M14 9h.01M18 9h.01M7 15h10"/></symbol>
+  <symbol id="ic-folder" viewBox="0 0 24 24"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></symbol>
+  <symbol id="ic-image-down" viewBox="0 0 24 24"><path d="M21 13V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"/><path d="m3 16 5-5 6 6M14 14l1-1M19 16v6M16 19l3 3 3-3"/><circle cx="9" cy="8" r="1.5"/></symbol>
+  <symbol id="ic-play" viewBox="0 0 24 24"><path d="M7 4v16l13-8z" fill="currentColor"/></symbol>
+  <symbol id="ic-trash" viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></symbol>
+  <symbol id="ic-grid" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></symbol>
+  <symbol id="ic-list" viewBox="0 0 24 24"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></symbol>
+  <symbol id="ic-check" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></symbol>
+  <symbol id="ic-close" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></symbol>
+  <symbol id="ic-sparkle" viewBox="0 0 24 24"><path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8z"/></symbol>
+  <symbol id="ic-folder-open" viewBox="0 0 24 24"><path d="M6 14l1.5-3A2 2 0 0 1 9.3 10H20a2 2 0 0 1 1.9 2.5l-1.5 6A2 2 0 0 1 18.5 20H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4l2 2h7a2 2 0 0 1 2 2v3"/></symbol>
+</svg>
+
+<script>
+// ── Mock data ─────────────────────────────────────────────────────────
+// All 37 systems, copied from src/systems.rs.
+const systems = [
+  {"id": "amstradcpc", "name": "Amstrad CPC", "short": "CPC", "maker": "Computers", "folder": "amstradcpc", "exts": [".cdt", ".cpc", ".dsk"], "accent": "#2f8f8a", "photo": "amstradcpc"},
+  {"id": "arcade", "name": "Arcade (MAME)", "short": "Arcade", "maker": "Arcade", "folder": "arcade", "exts": [".zip", ".7z"], "accent": "#e0663a", "photo": "arcade"},
+  {"id": "atari2600", "name": "Atari 2600", "short": "2600", "maker": "Atari", "folder": "atari2600", "exts": [".a26", ".bin", ".rom", ".gz", ".zip", ".7z"], "accent": "#c2410c", "photo": "atari2600"},
+  {"id": "atari5200", "name": "Atari 5200", "short": "5200", "maker": "Atari", "folder": "atari5200", "exts": [".a52", ".bas", ".bin", ".car", ".xex", ".atr", ".xfd", ".dcm", ".zip", ".7z"], "accent": "#b45309", "photo": "atari5200"},
+  {"id": "atari7800", "name": "Atari 7800", "short": "7800", "maker": "Atari", "folder": "atari7800", "exts": [".a78", ".bin", ".zip", ".7z"], "accent": "#9a3412", "photo": "atari7800"},
+  {"id": "atari800", "name": "Atari 800", "short": "800", "maker": "Atari", "folder": "atari800", "exts": [".a52", ".atr", ".bas", ".bin", ".car", ".cas", ".com", ".dcm", ".xex", ".xfd", ".zip", ".7z"], "accent": "#a16207", "photo": "atari800"},
+  {"id": "atarilynx", "name": "Atari Lynx", "short": "Lynx", "maker": "Atari", "folder": "atarilynx", "exts": [".lnx", ".zip", ".7z"], "accent": "#b7791f", "photo": "atarilynx"},
+  {"id": "channelf", "name": "Fairchild Channel F", "short": "Channel F", "maker": "Other", "folder": "channelf", "exts": [".bin", ".chf", ".zip", ".7z"], "accent": "#7c6f64", "photo": "channelf"},
+  {"id": "coleco", "name": "ColecoVision", "short": "Coleco", "maker": "Other", "folder": "coleco", "exts": [".bin", ".col", ".rom", ".zip", ".7z"], "accent": "#4b5563", "photo": "coleco"},
+  {"id": "dreamcast", "name": "Dreamcast", "short": "Dreamcast", "maker": "Sega", "folder": "dreamcast", "exts": [".cdi", ".chd", ".cue", ".gdi", ".zip", ".m3u"], "accent": "#d9475b", "photo": "dreamcast"},
+  {"id": "fba", "name": "FinalBurn Alpha", "short": "FBA", "maker": "Arcade", "folder": "fba", "exts": [".zip", ".7z", ".fba", ".cue"], "accent": "#db5a2c", "photo": "arcade"},
+  {"id": "fds", "name": "Famicom Disk System", "short": "FDS", "maker": "Nintendo", "folder": "fds", "exts": [".fds", ".nes", ".zip", ".7z"], "accent": "#c53030", "photo": "fds"},
+  {"id": "gamegear", "name": "Sega Game Gear", "short": "Game Gear", "maker": "Sega", "folder": "gamegear", "exts": [".gg", ".bin", ".sms", ".zip", ".7z"], "accent": "#0e7490", "photo": "gamegear"},
+  {"id": "gb", "name": "Game Boy", "short": "GB", "maker": "Nintendo", "folder": "gb", "exts": [".gb", ".zip", ".7z"], "accent": "#5f7a3a", "photo": "gb"},
+  {"id": "gba", "name": "Game Boy Advance", "short": "GBA", "maker": "Nintendo", "folder": "gba", "exts": [".gba", ".zip", ".7z"], "accent": "#8f63cf", "photo": "gba"},
+  {"id": "gbc", "name": "Game Boy Color", "short": "GBC", "maker": "Nintendo", "folder": "gbc", "exts": [".gbc", ".zip", ".7z"], "accent": "#b83280", "photo": "gbc"},
+  {"id": "gc", "name": "GameCube", "short": "GC", "maker": "Nintendo", "folder": "gc", "exts": [".gcm", ".iso", ".gcz", ".ciso", ".rvz", ".dol", ".elf"], "accent": "#6d28d9", "photo": "gc"},
+  {"id": "mame-libretro", "name": "MAME (libretro)", "short": "MAME", "maker": "Arcade", "folder": "mame-libretro", "exts": [".zip", ".7z", ".cmd"], "accent": "#be4b2b", "photo": "arcade"},
+  {"id": "mastersystem", "name": "Sega Master System", "short": "SMS", "maker": "Sega", "folder": "mastersystem", "exts": [".sms", ".bin", ".zip", ".7z"], "accent": "#b91c1c", "photo": "mastersystem"},
+  {"id": "megadrive", "name": "Sega Genesis / MD", "short": "Genesis", "maker": "Sega", "folder": "megadrive", "exts": [".smd", ".bin", ".gen", ".md", ".zip", ".7z"], "accent": "#3a7bd5", "photo": "megadrive"},
+  {"id": "msx", "name": "MSX", "short": "MSX", "maker": "Computers", "folder": "msx", "exts": [".rom", ".mx1", ".mx2", ".cas", ".dsk", ".m3u", ".zip", ".7z"], "accent": "#1d4ed8", "photo": "msx"},
+  {"id": "n64", "name": "Nintendo 64", "short": "N64", "maker": "Nintendo", "folder": "n64", "exts": [".n64", ".z64", ".v64", ".zip"], "accent": "#2c9a63", "photo": "n64"},
+  {"id": "neogeo", "name": "Neo Geo", "short": "Neo Geo", "maker": "SNK", "folder": "neogeo", "exts": [".zip", ".7z"], "accent": "#9a7b1c", "photo": "neogeo"},
+  {"id": "nes", "name": "Nintendo Entertainment System", "short": "NES", "maker": "Nintendo", "folder": "nes", "exts": [".nes", ".zip", ".7z"], "accent": "#dc2626", "photo": "nes"},
+  {"id": "ngp", "name": "Neo Geo Pocket", "short": "NGP", "maker": "SNK", "folder": "ngp", "exts": [".ngp", ".zip", ".7z"], "accent": "#57534e", "photo": "ngp"},
+  {"id": "ngpc", "name": "Neo Geo Pocket Color", "short": "NGPC", "maker": "SNK", "folder": "ngpc", "exts": [".ngc", ".zip", ".7z"], "accent": "#0f766e", "photo": "ngpc"},
+  {"id": "pcengine", "name": "PC Engine / TurboGrafx-16", "short": "PCE", "maker": "NEC", "folder": "pcengine", "exts": [".pce", ".cue", ".ccd", ".chd", ".zip", ".7z"], "accent": "#ea580c", "photo": "pcengine"},
+  {"id": "ps2", "name": "PlayStation 2", "short": "PS2", "maker": "Sony", "folder": "ps2", "exts": [".iso", ".chd", ".cso", ".bin", ".img", ".mdf", ".nrg", ".cue", ".gz", ".elf"], "accent": "#1e40af", "photo": "ps2"},
+  {"id": "psp", "name": "PlayStation Portable", "short": "PSP", "maker": "Sony", "folder": "psp", "exts": [".iso", ".cso", ".pbp", ".chd"], "accent": "#334155", "photo": "psp"},
+  {"id": "psx", "name": "PlayStation", "short": "PS1", "maker": "Sony", "folder": "psx", "exts": [".cue", ".bin", ".img", ".mdf", ".pbp", ".toc", ".cbn", ".m3u", ".ccd", ".chd", ".iso"], "accent": "#5b6ee1", "photo": "psx"},
+  {"id": "sega32x", "name": "Sega 32X", "short": "32X", "maker": "Sega", "folder": "sega32x", "exts": [".32x", ".bin", ".md", ".smd", ".zip", ".7z"], "accent": "#e11d48", "photo": "sega32x"},
+  {"id": "segacd", "name": "Sega CD", "short": "Sega CD", "maker": "Sega", "folder": "segacd", "exts": [".cue", ".bin", ".chd", ".iso", ".m3u", ".7z"], "accent": "#4338ca", "photo": "segacd"},
+  {"id": "sg-1000", "name": "Sega SG-1000", "short": "SG-1000", "maker": "Sega", "folder": "sg-1000", "exts": [".sg", ".bin", ".zip", ".7z"], "accent": "#64748b", "photo": "sg-1000"},
+  {"id": "snes", "name": "Super Nintendo", "short": "SNES", "maker": "Nintendo", "folder": "snes", "exts": [".sfc", ".smc", ".fig", ".swc", ".mgd", ".bin", ".zip", ".7z"], "accent": "#6b46c1", "photo": "snes"},
+  {"id": "vectrex", "name": "Vectrex", "short": "Vectrex", "maker": "Other", "folder": "vectrex", "exts": [".vec", ".gam", ".bin", ".zip", ".7z"], "accent": "#475569", "photo": "vectrex"},
+  {"id": "wii", "name": "Wii", "short": "Wii", "maker": "Nintendo", "folder": "wii", "exts": [".iso", ".wbfs", ".rvz", ".gcz", ".ciso", ".wad", ".dol", ".elf", ".gcm"], "accent": "#0284c7", "photo": "wii"},
+  {"id": "zxspectrum", "name": "ZX Spectrum", "short": "ZX", "maker": "Computers", "folder": "zxspectrum", "exts": [".tzx", ".tap", ".z80", ".sna", ".szx", ".udi", ".mgt", ".trd", ".scl", ".img", ".dsk", ".gz", ".zip", ".7z"], "accent": "#9333ea", "photo": "zxspectrum"},
+];
+const MAKERS = ["Nintendo", "Sega", "Sony", "Atari", "SNK", "NEC", "Arcade", "Computers", "Other"];
+for (const s of systems) s.glyph = /^\d{3,}/.test(s.short) ? s.short.slice(0, 2) : s.short.length <= 3 ? s.short : s.short[0];
+const byId = (id) => systems.find((s) => s.id === id);
+const games = {
+  snes: [
+    ["Super Mario World", 1990, "Platformer", 4.5], ["The Legend of Zelda: A Link to the Past", 1991, "Action RPG", 5],
+    ["Super Metroid", 1994, "Action", 5], ["Chrono Trigger", 1995, "RPG", 5], ["Donkey Kong Country", 1994, "Platformer", 4],
+    ["F-Zero", 1990, "Racing", 3.5], ["EarthBound", 1994, "RPG", 4.5], ["Street Fighter II Turbo", 1993, "Fighting", 4],
+    ["Mega Man X", 1993, "Action", 4.5], ["Star Fox", null, null, 0], ["Kirby Super Star", 1996, "Platformer", 4], ["Secret of Mana", 1993, "Action RPG", 4.5],
+  ],
+  nes: [["Super Mario Bros. 3", 1988, "Platformer", 5], ["Metroid", 1986, "Action", 4], ["Contra", 1987, "Shooter", 4], ["Mega Man 2", 1988, "Action", 4.5], ["Punch-Out!!", 1987, "Sports", 4]],
+  n64: [["Super Mario 64", 1996, "Platformer", 5], ["GoldenEye 007", 1997, "Shooter", 4.5], ["Mario Kart 64", 1996, "Racing", 4], ["Banjo-Kazooie", null, null, 0]],
+  gba: [["Metroid Fusion", 2002, "Action", 4.5], ["Advance Wars", 2001, "Strategy", 4.5], ["Golden Sun", 2001, "RPG", 4]],
+  megadrive: [["Sonic the Hedgehog 2", 1992, "Platformer", 4.5], ["Streets of Rage 2", 1992, "Beat 'em up", 5], ["Gunstar Heroes", 1993, "Action", 4.5]],
+};
+const state = {
+  page: "system", sys: byId("snes"), view: "grid", selected: null, scraping: false,
+  // Systems in the sidebar, in order.
+  enabled: ["snes", "nes", "n64", "gba", "megadrive", "psx", "arcade", "atari2600"],
+  // Systems RetroPie has an emulator installed for.
+  installed: new Set(["snes", "nes", "n64", "gba", "megadrive", "psx", "arcade", "atari2600", "gb", "gbc", "mastersystem", "gamegear", "pcengine", "mame-libretro", "fba", "neogeo", "dreamcast", "zxspectrum"]),
+  // Games found in other systems' folders that belong to these systems.
+  waiting: { gb: 3, ps2: 1 },
+  flagged: new Set(["psx"]),
+  maker: "All",
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────
+const $ = (s) => document.querySelector(s);
+const app = $("#app");
+const icon = (id, cls = "") => `<svg class="i ${cls}"><use href="#ic-${id}"/></svg>`;
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+const monogram = (t) => t.split(/[\s:\-]+/).filter((w) => /^[A-Za-z0-9]/.test(w) && !/^(the|a|an|of|and)$/i.test(w)).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+const hash = (s) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+// Placeholder box art: a gradient around the seed hue, varied per title.
+const art = (title, seed) => {
+  const shift = (hash(title) % 70) - 35;
+  return `background: linear-gradient(150deg, oklch(from ${seed} 0.62 calc(c * 0.9) calc(h + ${shift})), oklch(from ${seed} 0.34 calc(c * 0.7) calc(h + ${shift + 30})));`;
+};
+const tile = (s, size, glyph, cls = "") => `<span class="tile ${cls}" style="width:${size}px;height:${size}px;background:${s.accent};font-size:${s.glyph.length > 2 ? glyph * 0.78 : glyph}px;letter-spacing:-.3px">${s.glyph}</span>`;
+// The system's real logo, from assets/logos/ (public domain, see CREDITS.md there).
+// Falls back to the letter tile for systems without a logo file yet.
+const logo = (s, cls = "") => `<div class="logo-plate ${cls}"><img src="../assets/logos/${s.id}.svg" alt="" onerror="this.parentElement.classList.add('missing')"><span class="logo-fallback">${tile(s, 40, 16)}<span class="title-s" style="color:#1d1b20">${s.short}</span></span></div>`;
+const photo = (s) => `../assets/systems/${s.photo}.jpg`;
+const stars = (r) => "★".repeat(Math.floor(r)) + (r % 1 ? "½" : "") ;
+
+// ── Render ────────────────────────────────────────────────────────────
+function renderDrawer() {
+  $("#systems").innerHTML = state.enabled.map(byId).map((s) => {
+    const n = (games[s.id] || []).length;
+    return `<button class="nav-item state" data-sys="${s.id}" aria-current="${state.page === "system" && s === state.sys}">
+      ${tile(s, 24, 11)}
+      <span class="name label-l">${s.name}</span>
+      ${state.flagged.has(s.id) ? '<span class="badge-dot" title="Games in the wrong folder"></span>' : ""}
+      <span class="count label-m">${n}</span>
+    </button>`;
+  }).join("");
+  const waiting = Object.keys(state.waiting).filter((id) => !state.enabled.includes(id)).length;
+  $("#nav-add").setAttribute("aria-current", state.page === "emulators");
+  $("#nav-add-badge").textContent = waiting;
+  $("#nav-add-badge").hidden = !waiting;
+}
+
+function renderContent() {
+  if (state.page === "emulators") return renderEmulators();
+  const s = state.sys;
+  const q = $("#search").value.trim().toLowerCase();
+  const all = games[s.id] || [];
+  const list = all.filter(([t]) => t.toLowerCase().includes(q));
+  const files = all.length + 3;
+
+  const header = `
+    <div class="header system-header">
+      <div class="row">
+        ${logo(s)}
+        <div class="headline-s title">${s.name}</div>
+        <div class="actions">
+          <button class="icon-btn outlined state" title="Open in file manager">${icon("folder-open")}</button>
+          <button class="btn outlined state" title="Fetch box art & metadata for every game">${icon("image-down")}${state.scraping ? "Scraping…" : "Scrape"}</button>
+          <button class="btn filled state" id="add-rom">${icon("plus")}Add ROM</button>
+        </div>
+      </div>
+      <div class="text">
+        <div class="body-m muted">Drop files anywhere in the window, or pick them from disk. Zips are extracted automatically.</div>
+        <div class="chips">
+          <span class="chip tonal">${plural(all.length, "game")}</span>
+          <span class="chip tonal">${plural(files, "file")}</span>
+          <span class="chip tonal">${icon("folder", "sm")}roms/${s.folder}</span>
+        </div>
+        ${state.scraping ? `<div class="progress"><div class="label-m muted" style="display:flex;justify-content:space-between"><span>Scraping with Skyscraper</span><span style="color:var(--on-surface)">8 / 12</span></div><div class="track"><div class="bar"></div></div></div>` : ""}
+      </div>
+    </div>`;
+
+  const notice = all.some((g) => !g[1]) ? `
+    <div class="notice">
+      <div class="ic">${icon("sparkle")}</div>
+      <div class="body"><div class="title-s">Box art needs Skyscraper</div><div class="body-m">Some games have no art yet. Skyscraper fetches covers and descriptions from ScreenScraper.</div></div>
+      <button class="btn outlined state" style="border-color:currentColor">Install Skyscraper</button>
+    </div>` : "";
+
+  const toolbar = `
+    <div class="toolbar">
+      <div class="title-m">Library</div>
+      <span class="chip sm tonal">${list.length}</span>
+      <span class="spacer"></span>
+      <div class="segmented">
+        <button class="state" data-view="grid" aria-pressed="${state.view === "grid"}">${icon("grid", "sm")}Grid</button>
+        <button class="state" data-view="list" aria-pressed="${state.view === "list"}">${icon("list", "sm")}List</button>
+      </div>
+    </div>`;
+
+  let body;
+  if (!all.length) {
+    body = `<div class="empty">${logo(s, "lg")}<div class="title-l">No ${s.short} games yet</div><div class="body-m muted">Add ROMs with the button below, or drop them anywhere in the window.</div><div style="display:flex;gap:6px">${s.exts.map((e) => `<span class="chip sm detail">${e}</span>`).join("")}</div><button class="btn filled state">${icon("plus")}Add your first ROM</button></div>`;
+  } else if (!list.length) {
+    body = `<div class="empty"><div class="title-l">No matches</div><div class="body-m muted">Nothing in ${s.short} matches “${q}”.</div></div>`;
+  } else if (state.view === "grid") {
+    body = `<div class="grid">${list.map(([t, y, g], i) => `
+      <div class="card state ${i === 1 && !state.selected ? "focused" : ""}" data-game="${t}" aria-selected="${state.selected === t}" tabindex="0">
+        <div class="art" style="${art(t, s.accent)}">${monogram(t)}
+          ${!y ? '<span class="flag chip sm warn">No art</span>' : ""}
+          <button class="play state" title="Play">${icon("play")}</button>
+        </div>
+        <div class="meta">
+          <div class="title title-s" title="${t}">${t}</div>
+          <div class="tags">${y ? `<span class="chip sm tonal">${y}</span><span class="chip sm tonal">${g}</span>` : '<span class="chip sm">Not scraped</span>'}</div>
+        </div>
+      </div>`).join("")}
+      <button class="add-tile state"><span class="plus">${icon("plus")}</span><span class="title-s">Add ROM</span><span class="body-s muted">Click or drop files</span><span class="exts">${s.exts.map((e) => `<span class="chip sm detail">${e}</span>`).join("")}</span></button>
+    </div>`;
+  } else {
+    body = `<div class="list"><div class="row label-m"><span></span><span>Title</span><span>Details</span><span>Files</span><span></span></div>${list.map(([t, y, g]) => `
+      <div class="row state" data-game="${t}"><span class="thumb" style="${art(t, s.accent)}">${monogram(t)}</span><span class="title-s">${t}</span>
+      <span class="tags" style="display:flex;gap:4px">${y ? `<span class="chip sm tonal">${y}</span><span class="chip sm tonal">${g}</span>` : '<span class="chip sm warn">No art</span>'}</span>
+      <span class="body-m muted">1</span><span class="acts"><button class="icon-btn sm state" title="Play">${icon("play", "sm")}</button><button class="icon-btn sm state" title="Delete">${icon("trash", "sm")}</button></span></div>`).join("")}</div>`;
+  }
+
+  $("#content").innerHTML = header + notice + toolbar + body;
+}
+
+function renderEmulators() {
+  const q = $("#search").value.trim().toLowerCase();
+  const matches = (s) => !q || [s.name, s.short, s.maker, s.id].some((f) => f.toLowerCase().includes(q));
+  const visible = systems.filter((s) => matches(s) && (state.maker === "All" || s.maker === state.maker));
+  const added = (s) => state.enabled.includes(s.id);
+  const groups = [];
+  const suggested = visible.filter((s) => state.waiting[s.id] && !added(s));
+  if (suggested.length) groups.push(["Suggested for games you already have", suggested, true]);
+  for (const m of MAKERS) {
+    const items = visible.filter((s) => s.maker === m && !suggested.includes(s));
+    if (items.length) groups.push([m, items, false]);
+  }
+
+  const card = (s) => {
+    const isAdded = added(s), installed = state.installed.has(s.id), waiting = state.waiting[s.id];
+    return `<div class="emu-card state ${isAdded ? "added" : ""} ${waiting && !isAdded ? "suggested" : ""}" data-emu="${s.id}" tabindex="0">
+      <div class="well">
+        <img src="${photo(s)}" alt="${s.name}" loading="lazy">
+        <div class="badges">
+          ${isAdded ? `<span class="chip sm tonal">${icon("check", "sm")}In your list</span>` : ""}
+          ${waiting && !isAdded ? `<span class="chip sm err">${plural(waiting, "game")} waiting</span>` : ""}
+        </div>
+        ${isAdded
+          ? `<button class="btn tonal sm emu-action state" data-open="${s.id}">Open</button>`
+          : `<button class="btn sm emu-action state" data-add="${s.id}" style="background:${s.accent};color:#fff">${icon("plus", "sm")}Add</button>`}
+      </div>
+      <div class="caption">
+        ${logo(s, "sm")}
+        <div class="text">
+          <div class="title-s name">${s.name}</div>
+          <div class="body-s muted status"><span class="dot ${installed ? "on" : ""}"></span>${installed ? "Emulator installed" : "Emulator not installed yet"}</div>
+        </div>
+      </div>
+    </div>`;
+  };
+
+  const counts = Object.fromEntries(MAKERS.map((m) => [m, systems.filter((s) => s.maker === m).length]));
+  $("#content").innerHTML = `
+    <div class="header">
+      <div class="text">
+        <div class="headline-s">Emulator library</div>
+        <div class="body-m muted">Every system RetroPie can run. Add one to put it in your sidebar and get a ROM folder for it.</div>
+        <div class="chips">
+          <span class="chip tonal">${plural(systems.length, "system")}</span>
+          <span class="chip tonal">${state.enabled.length} in your list</span>
+          <span class="chip tonal">${state.installed.size} emulators installed</span>
+        </div>
+      </div>
+    </div>
+    <div class="filters">
+      ${["All", ...MAKERS].map((m) => `<button class="chip filter state" data-maker="${m}" aria-pressed="${state.maker === m}">${state.maker === m ? icon("check", "sm") : ""}${m}<span class="n">${m === "All" ? systems.length : counts[m]}</span></button>`).join("")}
+    </div>
+    ${groups.length ? groups.map(([title, items, hot]) => `
+      <section class="emu-group">
+        <div class="group-head"><span class="title-s ${hot ? "hot" : ""}">${title}</span><span class="label-m muted">${items.length}</span></div>
+        <div class="emu-grid">${items.map(card).join("")}</div>
+      </section>`).join("")
+    : `<div class="empty"><div class="title-l">No matches</div><div class="body-m muted">No system matches “${q}”.</div></div>`}
+    <div class="body-s muted">Photos: Wikimedia Commons, mostly by Evan-Amos (public domain). Logos: Wikimedia Commons (public domain), trademarks of their owners.</div>`;
+}
+
+function renderSheet() {
+  const s = state.sys;
+  const g = (games[s.id] || []).find(([t]) => t === state.selected);
+  if (!g) return;
+  const [t, y, genre, r] = g;
+  $("#sheet").innerHTML = `
+    <header><span class="t title-l">Game details</span><button class="icon-btn state" id="close-sheet" title="Close">${icon("close")}</button></header>
+    <div class="body">
+      <div class="hero">
+        <div class="art" style="${art(t, s.accent)};aspect-ratio:3/4">${monogram(t)}</div>
+        <div style="display:flex;flex-direction:column;gap:6px;min-width:0">
+          <div class="title-l">${t}</div>
+          <div class="body-m muted">${y ? `Nintendo · ${y}` : "Not scraped yet"}</div>
+          ${r ? `<div class="rating">${stars(r)}</div>` : ""}
+          <div style="display:flex;gap:4px;flex-wrap:wrap">${y ? `<span class="chip sm tonal">${genre}</span><span class="chip sm tonal">1 player</span>` : '<span class="chip sm warn">No art</span>'}</div>
+        </div>
+      </div>
+      <div class="body-m">${y ? "A defining adventure of the 16-bit era. Description, release date and publisher come from gamelist.xml after a Skyscraper scrape." : '<i class="muted">No description in gamelist.xml.</i>'}</div>
+      <dl class="dl"><dt>System</dt><dd>${s.name}</dd><dt>Folder</dt><dd>roms/${s.folder}</dd><dt>Added</dt><dd>3 Nov 2026</dd><dt>Size</dt><dd>1.5 MB</dd></dl>
+      <div><div class="label-m muted" style="margin-bottom:6px">Files</div><div class="files"><div><span>${t.replace(/[^A-Za-z0-9]+/g, " ").trim()} (USA)${s.exts[0]}</span><span class="muted">1.5 MB</span></div></div></div>
+    </div>
+    <footer>
+      <button class="btn outlined danger sm state">${icon("trash", "sm")}Delete</button>
+      <button class="icon-btn sm state" title="Show in folder">${icon("folder-open", "sm")}</button>
+      <span class="spacer"></span>
+      <button class="btn filled state" id="play">${icon("play")}Play</button>
+    </footer>`;
+}
+
+function renderTokens() {
+  const roles = ["primary", "on-primary", "primary-container", "on-primary-container", "secondary-container", "on-secondary-container", "tertiary", "tertiary-container",
+    "surface", "surface-container-low", "surface-container", "surface-container-high", "surface-container-highest", "on-surface", "on-surface-variant", "outline", "outline-variant", "error", "error-container"];
+  const fg = (r) => ["on-surface", "on-surface-variant", "tertiary", "error", "outline"].includes(r) ? "var(--surface)"
+    : r.startsWith("on-") ? `var(--${r.slice(3)})` : r === "primary" ? "var(--on-primary)" : "var(--on-surface)";
+  $("#tokens").innerHTML = `
+    <div><div class="headline-s">Design tokens</div><div class="body-m muted">Material 3 roles, generated from the ${state.sys.name} accent <code>${state.sys.accent}</code>. Pick a system in the app view to reseed.</div></div>
+    <div><h2 class="title-m">Colour roles</h2><div class="swatches">${roles.map((r) => `<div class="swatch" style="background:var(--${r});color:${fg(r)}"><span class="label-m">${r}</span><code>--${r}</code></div>`).join("")}</div></div>
+    <div><h2 class="title-m">Shape</h2><div class="shapes">
+      <div class="s"><div class="box" style="border-radius:var(--r-sm)"></div><span class="label-m">sm · 3px</span><span class="body-s muted">Controls, chips, rows, tiles</span></div>
+      <div class="s"><div class="box" style="border-radius:var(--r-md)"></div><span class="label-m">md · 4px</span><span class="body-s muted">Cards, dialogs, sheets</span></div>
+      <div class="s"><div class="box" style="width:24px;height:24px;border-radius:50%"></div><span class="label-m">full</span><span class="body-s muted">Status dots only</span></div>
+    </div></div>
+    <div><h2 class="title-m">Type scale</h2><div class="typescale">
+      ${[["headline-s", "24 / 32 · 500"], ["title-l", "20 / 28 · 500"], ["title-m", "15 / 22 · 600"], ["title-s", "13 / 20 · 600"], ["body-m", "14 / 20 · 400"], ["body-s", "12 / 16 · 400"], ["label-l", "14 / 20 · 500"], ["label-m", "12 / 16 · 500"], ["label-s", "11 / 16 · 500"]]
+        .map(([c, spec]) => `<div><code>${c} · ${spec}</code><span class="${c}">Super Mario World</span></div>`).join("")}
+    </div></div>
+    <div><h2 class="title-m">Components</h2><div style="display:flex;flex-direction:column;gap:var(--s4)">
+      <div class="row-demo"><button class="btn filled state">${icon("plus")}Filled</button><button class="btn tonal state">Tonal</button><button class="btn outlined state">${icon("image-down")}Outlined</button><button class="btn state">Text</button><button class="btn outlined danger state">${icon("trash")}Danger</button><button class="icon-btn outlined state">${icon("folder-open")}</button></div>
+      <div class="row-demo"><span class="chip">Assist</span><span class="chip tonal">Tonal</span><span class="chip sm tonal">1994</span><span class="chip sm warn">No art</span><span class="chip sm err">2</span><span class="chip sm detail">.sfc</span>
+        <div class="segmented"><button aria-pressed="true">${icon("grid", "sm")}Grid</button><button>${icon("list", "sm")}List</button></div></div>
+      <div class="row-demo"><button class="btn filled focused">Keyboard focus ring</button><span class="body-s muted">2px primary outline, 2px offset, on every focusable element.</span></div>
+    </div></div>`;
+}
+
+function render() {
+  app.style.setProperty("--seed", state.sys.accent);
+  renderDrawer();
+  renderContent();
+  renderSheet();
+  renderTokens();
+}
+
+// ── Events ────────────────────────────────────────────────────────────
+let snackTimer, lastAdded = null;
+function openSystem(id) {
+  state.page = "system"; state.sys = byId(id); state.selected = null;
+  $("#search").value = ""; $("#search").placeholder = "Search games";
+  app.classList.remove("sheet-open"); render();
+}
+function snack(text, undo = true) {
+  $("#snackbar .btn").hidden = !undo;
+  $("#snack-text").textContent = text;
+  $("#snackbar").classList.add("show");
+  clearTimeout(snackTimer);
+  snackTimer = setTimeout(() => $("#snackbar").classList.remove("show"), 3200);
+}
+function setMode(dark) {
+  app.dataset.mode = dark ? "dark" : "light";
+  $("#toggle-mode").setAttribute("aria-pressed", dark);
+  $("#drawer-mode").innerHTML = `${icon(dark ? "sun" : "moon")}<span class="name label-l">${dark ? "Light mode" : "Dark mode"}</span>`;
+}
+
+document.addEventListener("click", (e) => {
+  const sys = e.target.closest("[data-sys]");
+  if (sys) { openSystem(sys.dataset.sys); return; }
+  if (e.target.closest("#nav-add")) { state.page = "emulators"; state.maker = "All"; $("#search").value = ""; $("#search").placeholder = "Search systems"; app.classList.remove("sheet-open"); render(); return; }
+  const add = e.target.closest("[data-add]");
+  if (add) {
+    const s = byId(add.dataset.add);
+    state.enabled.push(s.id); render();
+    snack(`Added ${s.name} to your list`); lastAdded = s.id; e.stopPropagation(); return;
+  }
+  const open = e.target.closest("[data-open]") || (e.target.closest(".emu-card.added"));
+  if (open) { openSystem(open.dataset.open || open.dataset.emu); return; }
+  const emu = e.target.closest(".emu-card");
+  if (emu) { emu.querySelector("[data-add]").click(); return; }
+  const maker = e.target.closest("[data-maker]");
+  if (maker) { state.maker = maker.dataset.maker; renderContent(); return; }
+  if (e.target.closest("#snackbar .btn") && lastAdded) { state.enabled = state.enabled.filter((id) => id !== lastAdded); lastAdded = null; $("#snackbar").classList.remove("show"); render(); return; }
+  const view = e.target.closest("[data-view]");
+  if (view) { state.view = view.dataset.view; renderContent(); return; }
+  if (e.target.closest(".play") || e.target.closest("#play") || e.target.closest('[title="Play"]')) {
+    const g = e.target.closest("[data-game]")?.dataset.game || state.selected;
+    snack(`Starting ${g}…`, false); e.stopPropagation(); return;
+  }
+  const game = e.target.closest("[data-game]");
+  if (game) { state.selected = game.dataset.game; renderContent(); renderSheet(); app.classList.add("sheet-open"); return; }
+  if (e.target.closest("#close-sheet") || e.target === $("#scrim")) { app.classList.remove("sheet-open"); state.selected = null; renderContent(); return; }
+  if (e.target.closest("#add-rom") || e.target.closest(".add-tile")) { snack(`Added 2 games to ${state.sys.short}`, false); return; }
+  if (e.target.closest("#drawer-mode")) { setMode(app.dataset.mode !== "dark"); return; }
+});
+$("#search").addEventListener("input", renderContent);
+document.addEventListener("keydown", (e) => {
+  if (e.key === "/" && document.activeElement !== $("#search")) { e.preventDefault(); $("#search").focus(); }
+  if (e.key === "Escape") { app.classList.remove("sheet-open"); state.selected = null; renderContent(); }
+});
+$("#toggle-mode").onclick = () => setMode(app.dataset.mode !== "dark");
+$("#toggle-scrape").onclick = (e) => { state.scraping = !state.scraping; e.target.setAttribute("aria-pressed", state.scraping); renderContent(); };
+$("#view-app").onclick = () => { app.classList.remove("show-tokens"); $("#view-app").setAttribute("aria-pressed", true); $("#view-tokens").setAttribute("aria-pressed", false); };
+$("#view-tokens").onclick = () => { app.classList.add("show-tokens"); $("#view-app").setAttribute("aria-pressed", false); $("#view-tokens").setAttribute("aria-pressed", true); };
+
+// Optional URL options for screenshots: ?mode=dark&view=tokens&game=Chrono%20Trigger
+const opts = new URLSearchParams(location.search);
+if (opts.get("sys")) state.sys = byId(opts.get("sys")) || state.sys;
+if (opts.get("page") === "emulators") { state.page = "emulators"; $("#search").placeholder = "Search systems"; }
+if (opts.get("maker")) state.maker = opts.get("maker");
+if (opts.get("game")) { state.selected = opts.get("game"); app.classList.add("sheet-open"); }
+if (opts.get("scrape")) { state.scraping = true; $("#toggle-scrape").setAttribute("aria-pressed", true); }
+render();
+if (opts.get("mode") === "dark") setMode(true);
+if (opts.get("view") === "tokens") $("#view-tokens").click();
+requestAnimationFrame(() => requestAnimationFrame(() => app.classList.remove("no-anim")));
+</script>
+</body>
+</html>

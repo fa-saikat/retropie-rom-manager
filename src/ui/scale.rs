@@ -86,8 +86,10 @@ pub fn apply_to_theme(cx: &mut App) {
             ThemeSizes {
                 font_size: t.font_size,
                 mono_font_size: t.mono_font_size,
-                radius: t.radius,
-                radius_lg: t.radius_lg,
+                // Corners come from the design system's shape scale, not
+                // the kit's rounder defaults.
+                radius: gpui_kit::px(super::shape::SM),
+                radius_lg: gpui_kit::px(super::shape::MD),
                 notification_width: t.notification.width,
                 notification_margins: {
                     let m = &t.notification.margins;

@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ROM Manager · Big Picture mockup</title>
+<!-- Inter and Poppins, loaded from Google Fonts. Locally installed copies are used first. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400..700&family=Poppins:wght@400;500;600&display=swap">
+<style>
+/* ──────────────────────────────────────────────────────────────────────
+   Big Picture: a TV / controller mode, laid out like the PS5 home screen.
+   Same design system as mockup.html: Inter, Poppins for detail text,
+   corners of 3px (controls) and 4px (containers), colour from the
+   selected system's accent. Drawn on a fixed 1920×1080 stage that scales
+   to the window, so it looks the same on any screen.
+   ────────────────────────────────────────────────────────────────────── */
+:root {
+  --seed: #6b46c1;
+  --r-sm: 3px;
+  --r-md: 4px;
+  --font: "Inter", system-ui, sans-serif;
+  --detail: "Poppins", var(--font);
+  --ease: cubic-bezier(.2, 0, 0, 1);
+  --med: 240ms;
+  --slow: 420ms;
+
+  /* Dark scheme only: this mode is for a TV across the room */
+  --primary: oklch(from var(--seed) 0.80 calc(c * 0.6) h);
+  --on-primary: oklch(from var(--seed) 0.22 calc(c * 0.6) h);
+  --surface: oklch(from var(--seed) 0.13 0.02 h);
+  --glass: oklch(from var(--seed) 0.22 0.02 h / 0.72);
+  --glass-hi: oklch(from var(--seed) 0.30 0.03 h / 0.85);
+  --on-surface: oklch(from var(--seed) 0.96 0.008 h);
+  --muted: oklch(from var(--seed) 0.78 0.02 h);
+  --outline: oklch(1 0 0 / 0.16);
+  --focus: oklch(1 0 0);
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+body { font-family: var(--font); font-feature-settings: "cv05", "cv08", "ss03"; color: var(--on-surface); }
+
+/* Fixed 16:9 stage, scaled to fit the window */
+#stage.no-anim, #stage.no-anim * { transition: none !important; animation: none !important; }
+#stage {
+  position: absolute; left: 50%; top: 50%; width: 1920px; height: 1080px;
+  transform-origin: 0 0; overflow: hidden; background: var(--surface);
+}
+
+/* Background: the focused item's art, large and soft, with scrims so the
+   text on the left always reads */
+.bg { position: absolute; inset: 0; transition: opacity var(--slow) var(--ease); }
+.bg .art { position: absolute; inset: -40px; filter: blur(2px) saturate(1.1); transform: scale(1.04); }
+.bg .mono { position: absolute; right: 120px; top: 120px; font-size: 520px; font-weight: 800; letter-spacing: -20px; color: oklch(1 0 0 / .08); line-height: 1; }
+.bg img.photo { position: absolute; right: 80px; top: 170px; width: 900px; height: 600px; object-fit: contain; filter: drop-shadow(0 30px 60px oklch(0 0 0 / .5)); }
+.scrim { position: absolute; inset: 0; pointer-events: none;
+  background:
+    linear-gradient(90deg, oklch(from var(--seed) 0.10 0.02 h / .96) 0%, oklch(from var(--seed) 0.10 0.02 h / .82) 38%, oklch(0 0 0 / 0) 72%),
+    linear-gradient(0deg, oklch(from var(--seed) 0.08 0.02 h / .98) 0%, oklch(0 0 0 / 0) 45%),
+    linear-gradient(180deg, oklch(0 0 0 / .55) 0%, oklch(0 0 0 / 0) 22%);
+}
+.fade { animation: fade var(--slow) var(--ease); }
+@keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── Top bar: system tabs left, clock right ── */
+.topbar { position: absolute; left: 96px; right: 96px; top: 48px; height: 56px; display: flex; align-items: center; gap: 8px; }
+.bumper { font: 600 14px var(--detail); color: var(--muted); border: 1.5px solid var(--outline); border-radius: var(--r-sm); padding: 4px 8px; }
+.tabs { display: flex; gap: 4px; align-items: center; overflow: hidden; }
+.tab {
+  height: 48px; padding: 0 20px; border-radius: var(--r-sm); display: flex; align-items: center; gap: 12px;
+  font-size: 22px; font-weight: 500; color: var(--muted); white-space: nowrap; transition: all var(--med) var(--ease);
+}
+.tab .dot { width: 10px; height: 10px; border-radius: 50%; }
+.tab.current { color: var(--on-surface); font-weight: 600; background: oklch(1 0 0 / .08); }
+.tab.focused { outline: 3px solid var(--focus); outline-offset: 2px; }
+.topbar .spacer { flex: 1; }
+.clock { font-size: 26px; font-weight: 500; font-variant-numeric: tabular-nums; }
+.pill-icon { width: 48px; height: 48px; border-radius: var(--r-sm); display: grid; place-items: center; color: var(--muted); }
+.pill-icon.focused { outline: 3px solid var(--focus); outline-offset: 2px; color: var(--on-surface); }
+
+/* ── Tile row: the focused tile grows and its title sits beside it ── */
+.row-label { position: absolute; left: 96px; top: 148px; font-size: 20px; font-weight: 500; color: var(--muted); }
+.tiles-wrap { position: absolute; left: 96px; right: 0; top: 188px; height: 260px; }
+.tiles { position: absolute; left: 0; top: 0; display: flex; align-items: flex-start; gap: 20px; transition: transform var(--slow) var(--ease); }
+.tile {
+  flex: none; width: 160px; height: 160px; border-radius: var(--r-md); position: relative; overflow: hidden;
+  display: grid; place-items: center; font-size: 52px; font-weight: 800; color: oklch(1 0 0 / .92);
+  box-shadow: 0 10px 30px oklch(0 0 0 / .35); transition: width var(--slow) var(--ease), height var(--slow) var(--ease), opacity var(--med);
+}
+.tiles.dim .tile:not(.focused) { opacity: .55; }
+.tiles .tile.past { opacity: 0 !important; }
+.tile.focused { width: 240px; height: 240px; font-size: 76px; }
+.tiles.active .tile.focused { outline: 4px solid var(--focus); outline-offset: 4px; }
+.tile .no-art { position: absolute; left: 10px; top: 10px; font: 600 13px var(--detail); padding: 3px 7px; border-radius: var(--r-sm); background: oklch(0.9 0.08 85); color: oklch(0.32 0.07 70); }
+.tile-title {
+  flex: none; max-width: 520px; overflow: hidden; text-overflow: ellipsis; align-self: flex-end; padding: 0 12px 6px 4px;
+  font-size: 30px; font-weight: 600; white-space: nowrap; animation: fade var(--slow) var(--ease);
+}
+.tile-title .sub { display: block; font-size: 18px; font-weight: 400; color: var(--muted); margin-top: 6px; }
+
+/* ── Hero: what's focused, and its actions ── */
+.hero { position: absolute; left: 96px; top: 500px; width: 900px; display: flex; flex-direction: column; gap: 20px; }
+.hero .logo-plate { width: 320px; height: 110px; border-radius: var(--r-md); background: oklch(0.99 0 0); position: relative; overflow: hidden; padding: 18px 26px; }
+.hero .logo-plate img { position: absolute; inset: 0; width: 100%; height: 100%; padding: inherit; object-fit: contain; }
+.hero h1 { margin: 0; font-size: 64px; line-height: 1.05; font-weight: 700; letter-spacing: -1px; max-width: 900px; }
+.hero .meta { display: flex; gap: 10px; align-items: center; font-size: 22px; color: var(--muted); flex-wrap: wrap; }
+.chip { height: 34px; padding: 0 14px; border-radius: var(--r-sm); display: inline-flex; align-items: center; gap: 8px; background: oklch(1 0 0 / .1); color: var(--on-surface); font: 500 18px var(--font); }
+.chip.warn { background: oklch(0.9 0.08 85); color: oklch(0.32 0.07 70); }
+.chip.detail { font-family: var(--detail); font-weight: 400; }
+.stars { color: var(--primary); letter-spacing: 3px; font-size: 22px; }
+.actions { display: flex; gap: 16px; align-items: center; margin-top: 10px; }
+.btn {
+  height: 72px; min-width: 72px; padding: 0 36px; border-radius: var(--r-sm); border: 0; display: inline-flex; align-items: center; justify-content: center; gap: 14px;
+  font: 600 26px var(--font); color: var(--on-surface); background: var(--glass); backdrop-filter: blur(12px); transition: all var(--med) var(--ease);
+}
+.btn.icon { padding: 0; width: 72px; }
+.btn.primary { background: var(--primary); color: var(--on-primary); min-width: 440px; }
+.btn.focused { outline: 4px solid var(--focus); outline-offset: 4px; transform: scale(1.04); }
+.btn.danger.focused { background: oklch(0.55 0.19 27); color: white; }
+.btn svg, .pill-icon svg { width: 30px; height: 30px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.btn.primary svg.play { fill: currentColor; stroke: none; }
+.hint-line { font-size: 18px; color: var(--muted); }
+
+/* ── Info cards, below the hero (Down from the buttons) ── */
+.info { position: absolute; left: 96px; right: 96px; top: 870px; display: flex; gap: 20px; transition: transform var(--slow) var(--ease); }
+.card { flex: none; width: 420px; height: 130px; border-radius: var(--r-md); background: var(--glass); backdrop-filter: blur(14px); padding: 20px 24px; display: flex; flex-direction: column; gap: 8px; transition: all var(--med) var(--ease); }
+.card .k { font-size: 16px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+.card .v { font-size: 22px; line-height: 1.35; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.card .v.detail { font-family: var(--detail); font-size: 20px; }
+.card.focused { outline: 4px solid var(--focus); outline-offset: 4px; background: var(--glass-hi); }
+
+/* ── Controller hints, bottom right ── */
+.hints { position: absolute; right: 96px; bottom: 36px; display: flex; gap: 28px; font-size: 20px; color: var(--muted); }
+.hints span { display: inline-flex; align-items: center; gap: 10px; }
+.key { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font: 700 15px/1 var(--font); color: #111; background: oklch(0.92 0 0); }
+.key.wide { width: auto; padding: 0 8px; border-radius: var(--r-sm); }
+
+/* ── Modal (delete confirm) and toast ── */
+.modal-scrim { position: absolute; inset: 0; background: oklch(0 0 0 / .6); display: none; place-items: center; }
+.modal-scrim.show { display: grid; animation: fade var(--med) var(--ease); }
+.modal { width: 760px; border-radius: var(--r-md); background: oklch(from var(--seed) 0.2 0.02 h); padding: 44px 48px; display: flex; flex-direction: column; gap: 18px; box-shadow: 0 30px 80px oklch(0 0 0 / .6); }
+.modal h2 { margin: 0; font-size: 36px; }
+.modal p { margin: 0; font-size: 22px; color: var(--muted); line-height: 1.45; }
+.modal .actions { justify-content: flex-end; margin-top: 18px; }
+.modal .btn { height: 64px; font-size: 24px; min-width: 180px; }
+.toast { position: absolute; left: 50%; top: 40px; transform: translate(-50%, -30px); opacity: 0; padding: 18px 28px; border-radius: var(--r-sm); background: oklch(0.96 0 0); color: #111; font-size: 22px; font-weight: 500; display: flex; gap: 14px; align-items: center; box-shadow: 0 20px 50px oklch(0 0 0 / .5); transition: all var(--med) var(--ease); }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
+.toast .bar { width: 6px; height: 28px; border-radius: var(--r-sm); background: var(--seed); }
+
+/* Page help, outside the stage */
+.help { position: fixed; left: 12px; bottom: 10px; font: 12px var(--font); color: #888; z-index: 5; }
+</style>
+</head>
+<body>
+<div id="stage" class="no-anim">
+  <div class="bg" id="bg"></div>
+  <div class="scrim"></div>
+
+  <div class="topbar">
+    <span class="bumper">L1</span>
+    <div class="tabs" id="tabs"></div>
+    <span class="bumper">R1</span>
+    <span class="spacer"></span>
+    <div class="pill-icon" id="exit" title="Leave Big Picture"><svg viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg></div>
+    <div class="clock" id="clock"></div>
+  </div>
+
+  <div class="row-label" id="row-label"></div>
+  <div class="tiles-wrap"><div class="tiles" id="tiles"></div></div>
+  <div class="hero" id="hero"></div>
+  <div class="info" id="info"></div>
+  <div class="hints" id="hints"></div>
+
+  <div class="modal-scrim" id="modal"></div>
+  <div class="toast" id="toast"><span class="bar"></span><span id="toast-text"></span></div>
+</div>
+<div class="help">Arrows move · Enter selects · Backspace goes back · Q / E switch system · X delete · S scrape · a gamepad works too</div>
+
+<script>
+// ── Data (shared with mockup.html) ────────────────────────────────────
+const systems = [
+  {"id": "amstradcpc", "name": "Amstrad CPC", "short": "CPC", "maker": "Computers", "folder": "amstradcpc", "exts": [".cdt", ".cpc", ".dsk"], "accent": "#2f8f8a", "photo": "amstradcpc"},
+  {"id": "arcade", "name": "Arcade (MAME)", "short": "Arcade", "maker": "Arcade", "folder": "arcade", "exts": [".zip", ".7z"], "accent": "#e0663a", "photo": "arcade"},
+  {"id": "atari2600", "name": "Atari 2600", "short": "2600", "maker": "Atari", "folder": "atari2600", "exts": [".a26", ".bin", ".rom", ".gz", ".zip", ".7z"], "accent": "#c2410c", "photo": "atari2600"},
+  {"id": "atari5200", "name": "Atari 5200", "short": "5200", "maker": "Atari", "folder": "atari5200", "exts": [".a52", ".bas", ".bin", ".car", ".xex", ".atr", ".xfd", ".dcm", ".zip", ".7z"], "accent": "#b45309", "photo": "atari5200"},
+  {"id": "atari7800", "name": "Atari 7800", "short": "7800", "maker": "Atari", "folder": "atari7800", "exts": [".a78", ".bin", ".zip", ".7z"], "accent": "#9a3412", "photo": "atari7800"},
+  {"id": "atari800", "name": "Atari 800", "short": "800", "maker": "Atari", "folder": "atari800", "exts": [".a52", ".atr", ".bas", ".bin", ".car", ".cas", ".com", ".dcm", ".xex", ".xfd", ".zip", ".7z"], "accent": "#a16207", "photo": "atari800"},
+  {"id": "atarilynx", "name": "Atari Lynx", "short": "Lynx", "maker": "Atari", "folder": "atarilynx", "exts": [".lnx", ".zip", ".7z"], "accent": "#b7791f", "photo": "atarilynx"},
+  {"id": "channelf", "name": "Fairchild Channel F", "short": "Channel F", "maker": "Other", "folder": "channelf", "exts": [".bin", ".chf", ".zip", ".7z"], "accent": "#7c6f64", "photo": "channelf"},
+  {"id": "coleco", "name": "ColecoVision", "short": "Coleco", "maker": "Other", "folder": "coleco", "exts": [".bin", ".col", ".rom", ".zip", ".7z"], "accent": "#4b5563", "photo": "coleco"},
+  {"id": "dreamcast", "name": "Dreamcast", "short": "Dreamcast", "maker": "Sega", "folder": "dreamcast", "exts": [".cdi", ".chd", ".cue", ".gdi", ".zip", ".m3u"], "accent": "#d9475b", "photo": "dreamcast"},
+  {"id": "fba", "name": "FinalBurn Alpha", "short": "FBA", "maker": "Arcade", "folder": "fba", "exts": [".zip", ".7z", ".fba", ".cue"], "accent": "#db5a2c", "photo": "arcade"},
+  {"id": "fds", "name": "Famicom Disk System", "short": "FDS", "maker": "Nintendo", "folder": "fds", "exts": [".fds", ".nes", ".zip", ".7z"], "accent": "#c53030", "photo": "fds"},
+  {"id": "gamegear", "name": "Sega Game Gear", "short": "Game Gear", "maker": "Sega", "folder": "gamegear", "exts": [".gg", ".bin", ".sms", ".zip", ".7z"], "accent": "#0e7490", "photo": "gamegear"},
+  {"id": "gb", "name": "Game Boy", "short": "GB", "maker": "Nintendo", "folder": "gb", "exts": [".gb", ".zip", ".7z"], "accent": "#5f7a3a", "photo": "gb"},
+  {"id": "gba", "name": "Game Boy Advance", "short": "GBA", "maker": "Nintendo", "folder": "gba", "exts": [".gba", ".zip", ".7z"], "accent": "#8f63cf", "photo": "gba"},
+  {"id": "gbc", "name": "Game Boy Color", "short": "GBC", "maker": "Nintendo", "folder": "gbc", "exts": [".gbc", ".zip", ".7z"], "accent": "#b83280", "photo": "gbc"},
+  {"id": "gc", "name": "GameCube", "short": "GC", "maker": "Nintendo", "folder": "gc", "exts": [".gcm", ".iso", ".gcz", ".ciso", ".rvz", ".dol", ".elf"], "accent": "#6d28d9", "photo": "gc"},
+  {"id": "mame-libretro", "name": "MAME (libretro)", "short": "MAME", "maker": "Arcade", "folder": "mame-libretro", "exts": [".zip", ".7z", ".cmd"], "accent": "#be4b2b", "photo": "arcade"},
+  {"id": "mastersystem", "name": "Sega Master System", "short": "SMS", "maker": "Sega", "folder": "mastersystem", "exts": [".sms", ".bin", ".zip", ".7z"], "accent": "#b91c1c", "photo": "mastersystem"},
+  {"id": "megadrive", "name": "Sega Genesis / MD", "short": "Genesis", "maker": "Sega", "folder": "megadrive", "exts": [".smd", ".bin", ".gen", ".md", ".zip", ".7z"], "accent": "#3a7bd5", "photo": "megadrive"},
+  {"id": "msx", "name": "MSX", "short": "MSX", "maker": "Computers", "folder": "msx", "exts": [".rom", ".mx1", ".mx2", ".cas", ".dsk", ".m3u", ".zip", ".7z"], "accent": "#1d4ed8", "photo": "msx"},
+  {"id": "n64", "name": "Nintendo 64", "short": "N64", "maker": "Nintendo", "folder": "n64", "exts": [".n64", ".z64", ".v64", ".zip"], "accent": "#2c9a63", "photo": "n64"},
+  {"id": "neogeo", "name": "Neo Geo", "short": "Neo Geo", "maker": "SNK", "folder": "neogeo", "exts": [".zip", ".7z"], "accent": "#9a7b1c", "photo": "neogeo"},
+  {"id": "nes", "name": "Nintendo Entertainment System", "short": "NES", "maker": "Nintendo", "folder": "nes", "exts": [".nes", ".zip", ".7z"], "accent": "#dc2626", "photo": "nes"},
+  {"id": "ngp", "name": "Neo Geo Pocket", "short": "NGP", "maker": "SNK", "folder": "ngp", "exts": [".ngp", ".zip", ".7z"], "accent": "#57534e", "photo": "ngp"},
+  {"id": "ngpc", "name": "Neo Geo Pocket Color", "short": "NGPC", "maker": "SNK", "folder": "ngpc", "exts": [".ngc", ".zip", ".7z"], "accent": "#0f766e", "photo": "ngpc"},
+  {"id": "pcengine", "name": "PC Engine / TurboGrafx-16", "short": "PCE", "maker": "NEC", "folder": "pcengine", "exts": [".pce", ".cue", ".ccd", ".chd", ".zip", ".7z"], "accent": "#ea580c", "photo": "pcengine"},
+  {"id": "ps2", "name": "PlayStation 2", "short": "PS2", "maker": "Sony", "folder": "ps2", "exts": [".iso", ".chd", ".cso", ".bin", ".img", ".mdf", ".nrg", ".cue", ".gz", ".elf"], "accent": "#1e40af", "photo": "ps2"},
+  {"id": "psp", "name": "PlayStation Portable", "short": "PSP", "maker": "Sony", "folder": "psp", "exts": [".iso", ".cso", ".pbp", ".chd"], "accent": "#334155", "photo": "psp"},
+  {"id": "psx", "name": "PlayStation", "short": "PS1", "maker": "Sony", "folder": "psx", "exts": [".cue", ".bin", ".img", ".mdf", ".pbp", ".toc", ".cbn", ".m3u", ".ccd", ".chd", ".iso"], "accent": "#5b6ee1", "photo": "psx"},
+  {"id": "sega32x", "name": "Sega 32X", "short": "32X", "maker": "Sega", "folder": "sega32x", "exts": [".32x", ".bin", ".md", ".smd", ".zip", ".7z"], "accent": "#e11d48", "photo": "sega32x"},
+  {"id": "segacd", "name": "Sega CD", "short": "Sega CD", "maker": "Sega", "folder": "segacd", "exts": [".cue", ".bin", ".chd", ".iso", ".m3u", ".7z"], "accent": "#4338ca", "photo": "segacd"},
+  {"id": "sg-1000", "name": "Sega SG-1000", "short": "SG-1000", "maker": "Sega", "folder": "sg-1000", "exts": [".sg", ".bin", ".zip", ".7z"], "accent": "#64748b", "photo": "sg-1000"},
+  {"id": "snes", "name": "Super Nintendo", "short": "SNES", "maker": "Nintendo", "folder": "snes", "exts": [".sfc", ".smc", ".fig", ".swc", ".mgd", ".bin", ".zip", ".7z"], "accent": "#6b46c1", "photo": "snes"},
+  {"id": "vectrex", "name": "Vectrex", "short": "Vectrex", "maker": "Other", "folder": "vectrex", "exts": [".vec", ".gam", ".bin", ".zip", ".7z"], "accent": "#475569", "photo": "vectrex"},
+  {"id": "wii", "name": "Wii", "short": "Wii", "maker": "Nintendo", "folder": "wii", "exts": [".iso", ".wbfs", ".rvz", ".gcz", ".ciso", ".wad", ".dol", ".elf", ".gcm"], "accent": "#0284c7", "photo": "wii"},
+  {"id": "zxspectrum", "name": "ZX Spectrum", "short": "ZX", "maker": "Computers", "folder": "zxspectrum", "exts": [".tzx", ".tap", ".z80", ".sna", ".szx", ".udi", ".mgt", ".trd", ".scl", ".img", ".dsk", ".gz", ".zip", ".7z"], "accent": "#9333ea", "photo": "zxspectrum"},
+];
+// Real box art for one game, to show how scraped covers look. Loaded from
+// Wikipedia (non-free cover art), not stored in the repo.
+const covers = {
+  "Super Mario World": "https://upload.wikimedia.org/wikipedia/en/3/32/Super_Mario_World_Coverart.png",
+};
+const games = {
+  snes: [
+    ["Super Mario World", 1990, "Platformer", 4.5], ["The Legend of Zelda: A Link to the Past", 1991, "Action RPG", 5],
+    ["Super Metroid", 1994, "Action", 5], ["Chrono Trigger", 1995, "RPG", 5], ["Donkey Kong Country", 1994, "Platformer", 4],
+    ["F-Zero", 1990, "Racing", 3.5], ["EarthBound", 1994, "RPG", 4.5], ["Street Fighter II Turbo", 1993, "Fighting", 4],
+    ["Mega Man X", 1993, "Action", 4.5], ["Star Fox", null, null, 0], ["Kirby Super Star", 1996, "Platformer", 4], ["Secret of Mana", 1993, "Action RPG", 4.5],
+  ],
+  nes: [["Super Mario Bros. 3", 1988, "Platformer", 5], ["Metroid", 1986, "Action", 4], ["Contra", 1987, "Shooter", 4], ["Mega Man 2", 1988, "Action", 4.5], ["Punch-Out!!", 1987, "Sports", 4]],
+  n64: [["Super Mario 64", 1996, "Platformer", 5], ["GoldenEye 007", 1997, "Shooter", 4.5], ["Mario Kart 64", 1996, "Racing", 4], ["Banjo-Kazooie", null, null, 0]],
+  gba: [["Metroid Fusion", 2002, "Action", 4.5], ["Advance Wars", 2001, "Strategy", 4.5], ["Golden Sun", 2001, "RPG", 4]],
+  megadrive: [["Sonic the Hedgehog 2", 1992, "Platformer", 4.5], ["Streets of Rage 2", 1992, "Beat 'em up", 5], ["Gunstar Heroes", 1993, "Action", 4.5]],
+};
+const MAKERS = ["Nintendo", "Sega", "Sony", "Atari", "SNK", "NEC", "Arcade", "Computers", "Other"];
+const byId = (id) => systems.find((s) => s.id === id);
+
+const state = {
+  enabled: ["snes", "nes", "n64", "gba", "megadrive", "psx", "arcade", "atari2600"],
+  tab: 0,            // index into tabs(): the systems in your list
+  zone: "tiles",     // "tabs" | "exit" | "tiles" | "actions" | "info"
+  tile: {},          // focused tile per tab id
+  action: 0,
+  info: 0,
+  modal: null,       // { title, body, buttons: [{label, kind, run}], focus }
+};
+
+// ── Helpers ───────────────────────────────────────────────────────────
+const $ = (s) => document.querySelector(s);
+const plural = (n, w) => `${n} ${w}${n === 1 ? "" : "s"}`;
+const monogram = (t) => t.split(/[\s:\-]+/).filter((w) => /^[A-Za-z0-9]/.test(w) && !/^(the|a|an|of|and)$/i.test(w)).slice(0, 2).map((w) => w[0].toUpperCase()).join("");
+const hash = (s) => [...s].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 7);
+const art = (title, seed) => {
+  const shift = (hash(title) % 70) - 35;
+  return `background: linear-gradient(150deg, oklch(from ${seed} 0.62 calc(c * 0.9) calc(h + ${shift})), oklch(from ${seed} 0.34 calc(c * 0.7) calc(h + ${shift + 30})));`;
+};
+const stars = (r) => "★".repeat(Math.floor(r)) + (r % 1 ? "½" : "");
+const ICON = {
+  play: '<svg class="play" viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></svg>',
+  scrape: '<svg viewBox="0 0 24 24"><path d="M21 13V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h8"/><path d="m3 16 5-5 6 6M19 16v6M16 19l3 3 3-3"/></svg>',
+  trash: '<svg viewBox="0 0 24 24"><path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/></svg>',
+};
+
+const tabs = () => state.enabled.map(byId);
+const currentTab = () => tabs()[state.tab];
+const describe = (g, s) => g[1]
+  ? `${g[0]} came out in ${g[1]} for the ${s.name}. A ${g[2].toLowerCase()} game, scraped from ScreenScraper with Skyscraper.`
+  : "Not scraped yet. Press S to fetch box art, a description and release details with Skyscraper.";
+
+// Items in the tile row for the current tab
+function tileItems() {
+  const s = currentTab();
+  return (games[s.id] || []).map((g) => ({ kind: "game", g, s }));
+}
+const tileIndex = () => Math.min(state.tile[currentTab().id] || 0, tileItems().length - 1);
+const focusedItem = () => tileItems()[tileIndex()];
+
+// Buttons under the hero for the focused item
+function actions() {
+  const it = focusedItem();
+  if (!it) return [];
+  if (it.kind === "game") return [
+    { label: "Play", icon: ICON.play, primary: true, run: () => toast(`Starting ${it.g[0]}…`) },
+  ];
+}
+
+function infoCards() {
+  const it = focusedItem();
+  if (!it) return [];
+  if (it.kind === "game") {
+    const [t, y, genre] = it.g;
+    return [
+      { k: "About", v: describe(it.g, it.s) },
+      { k: "Released", v: y ? `${y} · ${genre}` : "Unknown" },
+      { k: "File", v: `${t.replace(/[^A-Za-z0-9]+/g, " ").trim()} (USA)${it.s.exts[0]}`, detail: true },
+      { k: "Folder", v: `~/RetroPie/roms/${it.s.folder}`, detail: true },
+    ];
+  }
+  return [];
+}
+
+// ── Render ────────────────────────────────────────────────────────────
+function renderTabs() {
+  $("#tabs").innerHTML = tabs().map((s, i) => {
+    const cls = ["tab", i === state.tab ? "current" : "", state.zone === "tabs" && i === state.tab ? "focused" : ""].join(" ");
+    return `<div class="${cls}"><span class="dot" style="background:${s.accent}"></span>${s.short}</div>`;
+  }).join("");
+  $("#exit").classList.toggle("focused", state.zone === "exit");
+}
+
+function renderTiles() {
+  const items = tileItems();
+  const ix = tileIndex();
+  $("#row-label").textContent = `${currentTab().name} · ${plural(items.length, "game")}`;
+  const html = items.map((it, i) => {
+    const f = i === ix;
+    const past = i < ix ? "past" : "";
+    let tile;
+    const cover = covers[it.g[0]];
+    tile = cover
+      ? `<div class="tile ${past} ${f ? "focused" : ""}" style="background:#000 url('${cover}') center/cover no-repeat"></div>`
+      : `<div class="tile ${past} ${f ? "focused" : ""}" style="${art(it.g[0], it.s.accent)}">${monogram(it.g[0])}${it.g[1] ? "" : '<span class="no-art">No art</span>'}</div>`;
+    const title = it.g[0];
+    const sub = it.g[1] ? `${it.g[1]} · ${it.g[2]}` : "Not scraped";
+    return tile + (f ? `<div class="tile-title">${title}<span class="sub">${sub}</span></div>` : "");
+  }).join("");
+  const el = $("#tiles");
+  el.innerHTML = html;
+  el.classList.toggle("active", state.zone === "tiles");
+  el.classList.toggle("dim", state.zone !== "tiles");
+  // Keep the focused tile at the row's left edge, like the PS5
+  el.style.transform = `translateX(${-ix * (160 + 20)}px)`;
+}
+
+function renderHero() {
+  const it = focusedItem();
+  const hero = $("#hero");
+  if (!it) {
+    const s = currentTab();
+    hero.innerHTML = `<div class="logo-plate"><img src="../assets/logos/${s.id}.svg" alt="${s.name}" onerror="this.parentElement.style.display='none'"></div><h1>No ${s.short} games yet</h1><div class="hint-line" style="font-size:24px">Add ROMs from the desktop window, or copy them into ~/RetroPie/roms/${s.folder}.</div>`;
+    return;
+  }
+  let top = "";
+  {
+    const [t, y, genre, r] = it.g;
+    top = `<h1>${t}</h1><div class="meta">${y ? `<span class="chip">${y}</span><span class="chip">${genre}</span>${r ? `<span class="stars">${stars(r)}</span>` : ""}` : '<span class="chip warn">No art yet</span>'}<span class="chip detail">${it.s.exts[0]}</span></div>`;
+  }
+  const btns = actions().map((a, i) => `<button class="btn ${a.primary ? "primary" : ""} ${a.icon_only ? "icon" : ""} ${a.danger ? "danger" : ""} ${state.zone === "actions" && i === state.action ? "focused" : ""}" title="${a.label}">${a.icon}${a.icon_only ? "" : a.label}</button>`).join("");
+  hero.innerHTML = `${top}<div class="actions">${btns}</div>`;
+}
+
+function renderInfo() {
+  const cards = infoCards();
+  $("#info").innerHTML = cards.map((c, i) => `<div class="card ${state.zone === "info" && i === state.info ? "focused" : ""}"><div class="k">${c.k}</div><div class="v ${c.detail ? "detail" : ""}">${c.v}</div></div>`).join("");
+  // Scroll the page up a little when the cards have focus
+  const lift = state.zone === "info" ? -180 : 0;
+  for (const el of [$("#hero"), $("#info")]) {
+    el.style.transition = "transform var(--slow) var(--ease)";
+    el.style.transform = `translateY(${lift}px)`;
+  }
+  // The tile row steps aside while the cards are read
+  for (const el of [$(".tiles-wrap"), $("#row-label")]) {
+    el.style.transition = "opacity var(--med) var(--ease), transform var(--slow) var(--ease)";
+    el.style.opacity = state.zone === "info" ? 0 : 1;
+    el.style.transform = `translateY(${state.zone === "info" ? -40 : 0}px)`;
+  }
+}
+
+let lastBg = "";
+function renderBg() {
+  const it = focusedItem();
+  let html = "";
+  // Games: their art, large. Systems: a glow in the system's colour with
+  // its short name as a watermark.
+  const glow = (c) => `<div class="art" style="background: radial-gradient(ellipse 60% 70% at 72% 42%, oklch(from ${c} 0.48 calc(c * .75) h), oklch(from ${c} 0.14 0.03 h) 75%)"></div>`;
+  // A game with real art fills the screen with it, blurred; others get
+  // their gradient and initials.
+  if (it && covers[it.g[0]]) html = `<div class="art" style="background:url('${covers[it.g[0]]}') center/cover no-repeat;filter:blur(28px) saturate(1.25) brightness(.8);inset:-80px"></div>`;
+  else if (it) html = `<div class="art" style="${art(it.g[0], it.s.accent)}"></div><div class="mono">${monogram(it.g[0])}</div>`;
+  else html = `${glow(currentTab().accent)}<div class="mono" style="font-size:360px;top:220px;letter-spacing:-12px">${currentTab().short}</div>`;
+  const key = it ? it.g[0] : currentTab().id;
+  if (key !== lastBg) { $("#bg").innerHTML = html; $("#bg").classList.remove("fade"); void $("#bg").offsetWidth; $("#bg").classList.add("fade"); lastBg = key; }
+}
+
+function renderHints() {
+  const it = focusedItem();
+  const h = [["A", "Select"], ["B", "Back"]];
+  if (it?.kind === "game" && state.zone !== "tabs") h.push(["X", "Delete"], ["Y", "Scrape"]);
+  h.push(["L1 R1", "Systems", true]);
+  $("#hints").innerHTML = h.map(([k, l, wide]) => `<span><span class="key ${wide ? "wide" : ""}">${k}</span>${l}</span>`).join("");
+}
+
+function renderModal() {
+  const m = state.modal, el = $("#modal");
+  el.classList.toggle("show", !!m);
+  if (!m) { el.innerHTML = ""; return; }
+  el.innerHTML = `<div class="modal"><h2>${m.title}</h2><p>${m.body}</p><div class="actions">${m.buttons.map((b, i) => `<button class="btn ${b.kind || ""} ${i === m.focus ? "focused" : ""}">${b.label}</button>`).join("")}</div></div>`;
+}
+
+function render() {
+  const t = currentTab();
+  $("#stage").style.setProperty("--seed", t.accent);
+  renderTabs(); renderTiles(); renderHero(); renderInfo(); renderBg(); renderHints(); renderModal();
+}
+
+// ── Actions ───────────────────────────────────────────────────────────
+let toastTimer;
+function toast(text) {
+  $("#toast-text").textContent = text;
+  $("#toast").classList.add("show");
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => $("#toast").classList.remove("show"), 2600);
+}
+function confirmDelete(it) {
+  state.modal = {
+    title: `Delete ${it.g[0]}?`,
+    body: `Its file is removed from ~/RetroPie/roms/${it.s.folder}, along with any box art Skyscraper fetched. This can't be undone.`,
+    focus: 0,
+    buttons: [
+      { label: "Cancel", run: () => {} },
+      { label: "Delete", kind: "danger", run: () => {
+        games[it.s.id] = games[it.s.id].filter((g) => g !== it.g);
+        state.zone = "tiles"; toast(`Deleted ${it.g[0]}`);
+      } },
+    ],
+  };
+}
+function switchTab(delta) {
+  state.tab = (state.tab + delta + tabs().length) % tabs().length;
+  if (state.zone !== "tabs" && state.zone !== "exit") state.zone = "tiles";
+}
+
+// ── Input: keyboard and gamepad map to the same moves ────────────────
+const ZONES = ["tabs", "tiles", "actions", "info"];
+function move(dir) {
+  if (state.modal) {
+    if (dir === "left") state.modal.focus = Math.max(0, state.modal.focus - 1);
+    if (dir === "right") state.modal.focus = Math.min(state.modal.buttons.length - 1, state.modal.focus + 1);
+    return render();
+  }
+  const z = state.zone;
+  if (dir === "left" || dir === "right") {
+    const d = dir === "left" ? -1 : 1;
+    if (z === "tabs") { if (d > 0 && state.tab === tabs().length - 1) state.zone = "exit"; else state.tab = Math.max(0, Math.min(tabs().length - 1, state.tab + d)); }
+    else if (z === "exit") { if (d < 0) state.zone = "tabs"; }
+    else if (z === "tiles") { state.tile[currentTab().id] = Math.max(0, Math.min(tileItems().length - 1, tileIndex() + d)); state.action = 0; }
+    else if (z === "actions") state.action = Math.max(0, Math.min(actions().length - 1, state.action + d));
+    else if (z === "info") state.info = Math.max(0, Math.min(infoCards().length - 1, state.info + d));
+  } else {
+    const order = ZONES.filter((zz) => zz !== "info" || infoCards().length);
+    const at = order.indexOf(z === "exit" ? "tabs" : z);
+    const next = order[Math.max(0, Math.min(order.length - 1, at + (dir === "down" ? 1 : -1)))];
+    if (next !== z) { state.zone = next; state.action = 0; state.info = 0; }
+  }
+  render();
+}
+function select() {
+  if (state.modal) { const m = state.modal; state.modal = null; m.buttons[m.focus].run(); return render(); }
+  if (state.zone === "tabs") state.zone = "tiles";
+  else if (state.zone === "exit") toast("Leaving Big Picture…");
+  else if (state.zone === "tiles") { const a = actions()[0]; if (a) a.run(); }
+  else if (state.zone === "actions") actions()[state.action]?.run();
+  render();
+}
+function back() {
+  if (state.modal) { state.modal = null; return render(); }
+  if (state.zone === "info" || state.zone === "actions") state.zone = "tiles";
+  else if (state.zone === "tiles") state.zone = "tabs";
+  render();
+}
+function shortcut(key) {
+  const it = focusedItem();
+  if (state.modal || it?.kind !== "game") return;
+  if (key === "delete") confirmDelete(it);
+  if (key === "scrape") toast(`Scraping ${it.g[0]} with Skyscraper…`);
+  render();
+}
+
+document.addEventListener("keydown", (e) => {
+  const map = { ArrowLeft: () => move("left"), ArrowRight: () => move("right"), ArrowUp: () => move("up"), ArrowDown: () => move("down"),
+    Enter: select, " ": select, Backspace: back, Escape: back, q: () => { switchTab(-1); render(); }, e: () => { switchTab(1); render(); },
+    x: () => shortcut("delete"), s: () => shortcut("scrape") };
+  const f = map[e.key] || map[e.key.toLowerCase?.()];
+  if (f) { e.preventDefault(); f(); }
+});
+
+// Gamepad: standard mapping, with key repeat on the d-pad and left stick
+const pad = { held: {}, next: {} };
+function pollPad(t) {
+  const gp = [...(navigator.getGamepads?.() || [])].find(Boolean);
+  if (gp) {
+    const ax = gp.axes[0] || 0, ay = gp.axes[1] || 0;
+    const want = {
+      up: gp.buttons[12]?.pressed || ay < -0.6, down: gp.buttons[13]?.pressed || ay > 0.6,
+      left: gp.buttons[14]?.pressed || ax < -0.6, right: gp.buttons[15]?.pressed || ax > 0.6,
+      a: gp.buttons[0]?.pressed, b: gp.buttons[1]?.pressed, x: gp.buttons[2]?.pressed, y: gp.buttons[3]?.pressed,
+      l1: gp.buttons[4]?.pressed, r1: gp.buttons[5]?.pressed,
+    };
+    for (const [k, on] of Object.entries(want)) {
+      if (!on) { pad.held[k] = false; continue; }
+      const repeat = ["up", "down", "left", "right"].includes(k);
+      if (!pad.held[k] || (repeat && t >= pad.next[k])) {
+        pad.next[k] = t + (pad.held[k] ? 110 : 380);
+        pad.held[k] = true;
+        ({ up: () => move("up"), down: () => move("down"), left: () => move("left"), right: () => move("right"),
+           a: select, b: back, x: () => shortcut("delete"), y: () => shortcut("scrape"),
+           l1: () => { switchTab(-1); render(); }, r1: () => { switchTab(1); render(); } })[k]();
+      }
+    }
+  }
+  requestAnimationFrame(pollPad);
+}
+requestAnimationFrame(pollPad);
+
+// ── Stage scaling and clock ───────────────────────────────────────────
+function fit() {
+  const s = Math.min(innerWidth / 1920, innerHeight / 1080);
+  $("#stage").style.transform = `scale(${s}) translate(-50%, -50%)`;
+}
+addEventListener("resize", fit); fit();
+function tick() { $("#clock").textContent = new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit" }); }
+setInterval(tick, 10000); tick();
+
+// URL options for screenshots: ?tab=2&tile=1&zone=actions
+const opts = new URLSearchParams(location.search);
+if (opts.get("tab")) state.tab = +opts.get("tab") === -1 ? tabs().length - 1 : +opts.get("tab");
+if (opts.get("tile")) state.tile[currentTab().id] = +opts.get("tile");
+if (opts.get("zone")) state.zone = opts.get("zone");
+if (opts.get("modal")) { const it = focusedItem(); if (it?.kind === "game") confirmDelete(it); }
+render();
+requestAnimationFrame(() => requestAnimationFrame(() => $("#stage").classList.remove("no-anim")));
+</script>
+</body>
+</html>

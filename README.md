@@ -56,7 +56,7 @@ you never have to open a file manager or SSH into `~/RetroPie/roms`.
   <tr>
     <td valign="top">
       <img src="docs/screenshots/add-emulator.gif" alt="The Add emulator picker: searching for a system, adding Game Boy, then removing it again">
-      <p><b>All 37 RetroPie systems.</b> The sidebar starts with six. Add emulator has the rest, with photos, search, and whether RetroPie has an emulator for each.</p>
+      <p><b>All 37 RetroPie systems.</b> The sidebar starts with six. Add emulator opens the emulator library: every system with its photo and logo, grouped by maker, with search, and whether RetroPie has an emulator for each.</p>
     </td>
     <td valign="top">
       <img src="docs/screenshots/play.gif" alt="Pressing Play on a Dreamcast game, and the emulator starting">
@@ -136,6 +136,7 @@ the board, OS and the terminal output.
 
 | Option                | Effect |
 |-----------------------|--------|
+| `--big-picture`       | Start in Big Picture, a TV mode laid out like a games console: your systems as tabs, games in a row, a big Play button. Always fullscreen and dark. Q/E or Page Up/Down switch systems (L1/R1 on a gamepad mapped to keys). |
 | `--fullscreen`        | Run in fullscreen, e.g. on a TV. Fullscreen comes only from this option, so there's no key to switch it on or off. |
 | `--theme light\|dark` | Start in the light or dark theme |
 | `-h`, `--help`        | Print the options and exit |
@@ -284,7 +285,7 @@ these.
 | `ROM_MANAGER_SYSTEM=<id>` | Open on a system, e.g. `psx` |
 | `ROM_MANAGER_VIEW=list` | Start in list view |
 | `ROM_MANAGER_OPEN=<index>` | Open the details panel for that card |
-| `ROM_MANAGER_DIALOG=…` | `delete`, `about`, `quit`, `add-rom`, `add-rom-full`, `install-skyscraper`, `add-system`, `remove-system` or `move` |
+| `ROM_MANAGER_DIALOG=…` | `delete`, `about`, `quit`, `add-rom`, `add-rom-full`, `install-skyscraper`, `add-system` (opens the emulator library page), `remove-system` or `move` |
 | `ROM_MANAGER_RUN=…` | Start `install-skyscraper` or `scrape` right away |
 | `ROM_MANAGER_INSTALL=<file>` | Act as if the file was dropped on the window |
 | `ROM_MANAGER_CONFIGS=<dir>` | Read emulator configs from a stand-in for `/opt/retropie/configs` |
@@ -337,8 +338,14 @@ ROM Manager builds on:
 - Icons from [Tabler](https://tabler.io/icons) and [Lucide](https://lucide.dev),
   and system photos from Wikimedia Commons, credited in
   [`assets/systems/CREDITS.md`](assets/systems/CREDITS.md).
+- [Inter](https://rsms.me/inter/) and [Poppins](https://fonts.google.com/specimen/Poppins),
+  both under the SIL Open Font License, bundled in `assets/fonts/`.
+- System logos from Wikimedia Commons, credited in
+  [`assets/logos/CREDITS.md`](assets/logos/CREDITS.md). They are trademarks of
+  their owners and are shown only to identify each system.
 
-This project isn't affiliated with RetroPie. If it saves you some time, a star
+This project isn't affiliated with RetroPie, or with any of the companies
+whose systems it supports. If it saves you some time, a star
 helps other people find it.
 
 ## License

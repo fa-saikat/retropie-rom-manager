@@ -54,4 +54,6 @@ assets = [
     ["assets/icons/*", "usr/share/retropie-rom-manager/assets/icons/", "644"],
     # System photos for the "Add emulator" picker, with their credits.
     ["assets/systems/*", "usr/share/retropie-rom-manager/assets/systems/", "644"],
+    # System logos for the library header and the picker, with their credits.
+    ["assets/logos/*", "usr/share/retropie-rom-manager/assets/logos/", "644"],
 ]

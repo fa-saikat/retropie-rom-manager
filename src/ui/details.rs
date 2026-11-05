@@ -1,5 +1,5 @@
 //! Game details sheet, the delete / wrong-system confirmations, the
-//! add / remove emulator dialogs and the About dialog.
+//! remove emulator dialog and the About dialog.
 //!
 //! GPUI Kit re-runs a sheet/dialog builder on every render, so each one
 //! works from a snapshot taken when it opens and talks back to `RootView`
@@ -9,26 +9,23 @@ use gpui_kit::assets::IconName;
 use gpui_kit::component::button::{Button, ButtonVariant, ButtonVariants};
 use gpui_kit::component::description_list::DescriptionList;
 use gpui_kit::component::dialog::AlertDialog;
-use gpui_kit::component::input::{Input, InputState};
 use gpui_kit::component::rating::Rating;
 use gpui_kit::component::tag::Tag;
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme, Icon, Sizable, WindowExt, StyledExt};
 use gpui_kit::prelude::FluentBuilder;
 use gpui_kit::*;
 use std::path::PathBuf;
-use std::cell::Cell;
 use std::rc::Rc;
 
 use super::nav::{self, focus_button};
 use super::root::RootView;
 use super::scale::px;
-use super::sidebar::{system_glyph, system_tile};
-use crate::assets;
+use super::shape;
+use super::sidebar::system_glyph;
 use crate::detect;
 use crate::library::{self, GameEntry};
 use crate::scraper::{self, GameMeta, MediaState, ScrapeStatus};
-use crate::systems::{SystemDef, MAKERS, SYSTEMS};
-use crate::theme;
+use crate::systems::SystemDef;
 
 // GPUI Kit's dialog width and padding are fixed pixels. Restating them in
 // our scaled `px` makes dialogs grow with the rest of the UI.
@@ -187,7 +184,7 @@ fn render_body(s: &Snapshot, cx: &App) -> impl IntoElement {
                 .gap_1()
                 .child(div().text_xl().font_semibold().line_height(relative(1.2)).child(title))
                 .child(div().text_sm().text_color(t.muted_foreground).child(byline))
-                .child(h_flex().gap_1().children(tags.into_iter().map(|tag| Tag::secondary().small().child(tag)))),
+                .child(h_flex().gap_1().children(tags.into_iter().map(|tag| shape::small_tag(Tag::secondary()).child(tag)))),
         );
 
     let misplaced = s.misplaced.map(|other| {
@@ -660,7 +657,7 @@ fn destination_row(label: String, to: &'static SystemDef, adds: bool, cx: &App) 
                 .child(system_glyph(to, px(11.), t.foreground))
                 .child(to.short_name),
         )
-        .when(adds, |row| row.child(Tag::info().small().child("new")))
+        .when(adds, |row| row.child(shape::small_tag(Tag::info()).child("new")))
 }
 
 /// "Game Boy and SNES will be added to your list." for systems not listed.
@@ -834,283 +831,6 @@ pub(super) fn confirm_move_misplaced(view: &mut RootView, window: &mut Window, c
                 cx,
             ))
     });
-}
-
-/// One system the "Add emulator" picker offers.
-#[derive(Clone)]
-struct Choice {
-    system: &'static SystemDef,
-    photo: Option<PathBuf>,
-    /// Flagged games elsewhere that belong to it.
-    waiting: usize,
-    /// RetroPie has an emulator set up for it.
-    installed: bool,
-    focus: FocusHandle,
-}
-
-impl Choice {
-    fn matches(&self, query: &str) -> bool {
-        let s = self.system;
-        query.is_empty()
-            || [s.display_name, s.short_name, s.maker, s.id]
-                .iter()
-                .any(|field| field.to_lowercase().contains(query))
-    }
-}
-
-/// The flat grey the system photos were composited onto, so the photo
-/// well and the image read as one surface in both themes.
-const PHOTO_WELL: u32 = 0xECECEF;
-
-/// Searchable grid of photo cards for every system not in the sidebar,
-/// grouped by maker, with the ones that have games waiting for them first.
-pub(super) fn open_add_system(view: &mut RootView, window: &mut Window, cx: &mut Context<RootView>) {
-    let this = cx.entity().downgrade();
-    let choices: Vec<Choice> = SYSTEMS
-        .iter()
-        .filter(|s| !view.is_enabled(s))
-        .map(|system| Choice {
-            system,
-            photo: assets::system_photo(system),
-            waiting: view.waiting_for(system).len(),
-            installed: view.runnable.contains(system.id),
-            focus: cx.focus_handle(),
-        })
-        .collect();
-    let search = cx.new(|cx| InputState::new(window, cx).placeholder("Search systems"));
-    // Once the dialog has opened and taken focus for itself.
-    let focus = search.clone();
-    window.on_next_frame(move |window, cx| focus.update(cx, |s, cx| s.focus(window, cx)));
-    // Down or Enter in the search field goes on to the first match.
-    let first = {
-        let (choices, search) = (choices.clone(), search.clone());
-        Rc::new(move |window: &mut Window, cx: &mut App| {
-            let query = search.read(cx).value().trim().to_lowercase();
-            let groups = choice_groups(&choices, &query);
-            if let Some(choice) = groups.first().and_then(|(_, items)| items.first()) {
-                window.focus(&choice.focus, cx);
-            }
-        })
-    };
-    let scroll = ScrollHandle::new();
-    window.open_dialog(cx, move |dialog, window, cx| {
-        let t = cx.theme();
-        let query = search.read(cx).value().trim().to_lowercase();
-        let visible: Vec<&Choice> = choices.iter().filter(|c| c.matches(&query)).collect();
-        let groups = choice_groups(&choices, &query);
-        // Three cards a row, a group at a time.
-        let rows: Vec<Vec<FocusHandle>> = groups
-            .iter()
-            .flat_map(|(_, items)| items.chunks(3).map(|row| row.iter().map(|c| c.focus.clone()).collect()))
-            .collect();
-        let to_search = {
-            let search = search.clone();
-            Rc::new(move |window: &mut Window, cx: &mut App| search.update(cx, |s, cx| s.focus(window, cx)))
-                as nav::Handler
-        };
-
-        let body = if choices.is_empty() {
-            empty_note("Every system the app knows is already in your list.", cx)
-        } else if visible.is_empty() {
-            empty_note(&format!("No system matches “{query}”."), cx)
-        } else {
-            nav::group(v_flex(), rows, Some(to_search)).gap_6().pb_1().children(groups.into_iter().map(|(heading, items)| {
-                let count = items.len();
-                let focused = items.iter().position(|c| c.focus.is_focused(window));
-                let scroll = scroll.clone();
-                v_flex()
-                    .gap_2p5()
-                    .child(
-                        h_flex()
-                            .gap_2()
-                            .text_xs()
-                            .font_semibold()
-                            .text_color(t.muted_foreground)
-                            .child(heading)
-                            .child(div().font_normal().opacity(0.7).child(count.to_string())),
-                    )
-                    .child(
-                        div()
-                            .grid()
-                            .grid_cols(3)
-                            .gap_3()
-                            .when_some(focused, |grid, ix| {
-                                grid.on_children_prepainted(move |bounds, window, _| {
-                                    nav::reveal_child(&scroll, &Cell::new(true), bounds.get(ix).copied(), window)
-                                })
-                            })
-                            .children(items.into_iter().map(|choice| choice_card(choice, this.clone(), window, cx))),
-                    )
-            }))
-        };
-
-        dialog
-            .title("Add an emulator")
-            .w(px(760.))
-            .p(px(DIALOG_PADDING))
-            .child(
-                v_flex()
-                    .gap_4()
-                    .child(
-                        h_flex()
-                            .gap_4()
-                            .items_center()
-                            .child(div().flex_1().min_w_0().text_sm().text_color(t.muted_foreground).child(
-                                "Pick a system to add it to your list.",
-                            ))
-                            .child({
-                                let (leave, back) = (first.clone(), search.clone());
-                                div()
-                                    .key_context(ADD_SYSTEM_SEARCH)
-                                    .on_action(move |_: &nav::Leave, window, cx| leave(window, cx))
-                                    // Backspace on an empty search closes, like elsewhere in the dialog.
-                                    .on_action(move |_: &nav::Back, window, cx| {
-                                        if back.read(cx).value().is_empty() {
-                                            window.close_dialog(cx);
-                                        } else {
-                                            cx.propagate();
-                                        }
-                                    })
-                                    .w(px(220.))
-                                    .flex_shrink_0()
-                                    .child(
-                                        Input::new(&search)
-                                            .prefix(Icon::new(IconName::Search).small().text_color(t.muted_foreground))
-                                            .cleanable(true),
-                                    )
-                            }),
-                    )
-                    .child(div().id("add-system-scroll").h(px(500.)).overflow_y_scroll().track_scroll(&scroll).pr_1().child(body))
-                    .child(
-                        div()
-                            .text_xs()
-                            .text_color(t.muted_foreground.opacity(0.8))
-                            .child("Photos: Wikimedia Commons, mostly by Evan-Amos (public domain). Full credits in assets/systems/CREDITS.md."),
-                    ),
-            )
-    });
-}
-
-/// Wraps the Add emulator search field, for Down, Enter and Backspace in it.
-pub const ADD_SYSTEM_SEARCH: &str = "AddSystemSearch";
-
-/// The picker's groups: systems with games waiting first, then by maker.
-fn choice_groups<'a>(choices: &'a [Choice], query: &str) -> Vec<(String, Vec<&'a Choice>)> {
-    let visible: Vec<&Choice> = choices.iter().filter(|c| c.matches(query)).collect();
-    let mut groups: Vec<(String, Vec<&Choice>)> = Vec::new();
-    let suggested: Vec<&Choice> = visible.iter().copied().filter(|c| c.waiting > 0).collect();
-    if !suggested.is_empty() {
-        groups.push(("Suggested for games you already have".into(), suggested));
-    }
-    for maker in MAKERS {
-        let items: Vec<&Choice> = visible.iter().copied().filter(|c| c.system.maker == *maker && c.waiting == 0).collect();
-        if !items.is_empty() {
-            groups.push((maker.to_string(), items));
-        }
-    }
-    groups
-}
-
-fn empty_note(text: &str, cx: &App) -> Div {
-    div()
-        .py_10()
-        .flex()
-        .justify_center()
-        .text_sm()
-        .text_color(cx.theme().muted_foreground)
-        .child(text.to_string())
-}
-
-fn choice_card(choice: &Choice, this: WeakEntity<RootView>, window: &Window, cx: &App) -> impl IntoElement {
-    let t = cx.theme();
-    let system = choice.system;
-    let accent = theme::accent(system.accent);
-    let group = SharedString::from(format!("choice-{}", system.id));
-
-    let photo = div()
-        .relative()
-        .h(px(128.))
-        .bg(rgb(PHOTO_WELL))
-        .flex()
-        .items_center()
-        .justify_center()
-        .map(|well| match &choice.photo {
-            Some(path) => well.child(img(path.clone()).size_full().object_fit(ObjectFit::Contain)),
-            None => well.child(system_tile(system, px(56.), px(28.), px(14.))),
-        })
-        .when(choice.waiting > 0, |well| {
-            well.child(
-                div().absolute().left(px(8.)).top(px(8.)).child(
-                    Tag::danger()
-                        .small()
-                        .child(format!("{} {} waiting", choice.waiting, if choice.waiting == 1 { "game" } else { "games" })),
-                ),
-            )
-        })
-        // "Add" pill fades in on hover, in the system's own colour.
-        .child(
-            h_flex()
-                .absolute()
-                .right(px(8.))
-                .top(px(8.))
-                .gap_1()
-                .px_2()
-                .py(px(3.))
-                .rounded_full()
-                .bg(accent)
-                .text_xs()
-                .font_medium()
-                .text_color(white())
-                .invisible()
-                .group_hover(group.clone(), |s| s.visible())
-                .child(Icon::new(IconName::Plus).xsmall())
-                .child("Add"),
-        );
-
-    let (dot, status) = if choice.installed {
-        (t.success, "Emulator installed")
-    } else {
-        (t.muted_foreground.opacity(0.5), "Emulator not installed yet")
-    };
-    let caption = h_flex()
-        .gap_2p5()
-        .px_3()
-        .py_2p5()
-        .child(system_tile(system, px(26.), px(14.), px(7.)))
-        .child(
-            v_flex()
-                .min_w_0()
-                .child(div().text_sm().font_semibold().truncate().child(system.display_name))
-                .child(
-                    h_flex()
-                        .gap_1p5()
-                        .text_xs()
-                        .text_color(t.muted_foreground)
-                        .child(div().size(px(6.)).flex_shrink_0().rounded_full().bg(dot))
-                        .child(div().truncate().child(status)),
-                ),
-        );
-
-    let focused = choice.focus.is_focused(window);
-    v_flex()
-        .id(SharedString::from(format!("add-{}", system.id)))
-        .track_focus(&choice.focus)
-        .relative()
-        .group(group)
-        .rounded(t.radius_lg)
-        .overflow_hidden()
-        .border_1()
-        .border_color(if choice.waiting > 0 { t.danger.opacity(0.6) } else { t.border })
-        .bg(theme::card_bg(cx))
-        .cursor_pointer()
-        .hover(|s| s.border_color(accent))
-        .child(photo)
-        .child(caption)
-        .when(focused, |card| card.child(nav::ring(t.radius_lg, accent)))
-        .on_click(move |_, window, cx| {
-            window.close_dialog(cx);
-            this.update(cx, |view, cx| view.add_system(system, window, cx)).ok();
-        })
 }
 
 /// Removing a system deletes its games, so say exactly what goes.
@@ -1287,7 +1007,7 @@ pub(super) fn open_about(view: &mut RootView, window: &mut Window, cx: &mut Cont
                                 div()
                                     .size(px(40.))
                                     .flex_shrink_0()
-                                    .rounded(px(10.))
+                                    .rounded(shape::md())
                                     .bg(t.foreground)
                                     .flex()
                                     .items_center()

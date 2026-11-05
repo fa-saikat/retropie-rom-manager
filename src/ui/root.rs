@@ -41,6 +41,15 @@ pub fn request_quit(cx: &mut App) {
     });
 }
 
+/// What the main column shows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Page {
+    /// The selected system's library.
+    System,
+    /// The emulator library: every system, to add from.
+    Emulators,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ViewMode {
     Grid,
@@ -76,6 +85,9 @@ pub struct RunningGame {
 }
 
 pub struct RootView {
+    /// The TV mode from `--big-picture`, when it's on.
+    pub(super) big_picture: Option<super::bigpicture::BigPicture>,
+    pub(super) page: Page,
     pub(super) selected: &'static SystemDef,
     /// Systems in the sidebar: the ones the user added, plus any with games.
     pub(super) enabled: Vec<&'static SystemDef>,
@@ -98,6 +110,10 @@ pub struct RootView {
     pub(super) view_mode: ViewMode,
     pub(super) search: Entity<InputState>,
     pub(super) query: String,
+    /// The emulator library's own search field and maker filter.
+    pub(super) emu_search: Entity<InputState>,
+    pub(super) emu_query: String,
+    pub(super) maker_filter: Option<&'static str>,
     pub(super) scrape: Option<ScrapeJob>,
     /// Batches of ROMs still being copied or extracted.
     pub(super) installing: usize,
@@ -126,6 +142,13 @@ impl RootView {
                 cx.notify();
             }
         });
+        let emu_search = cx.new(|cx| InputState::new(window, cx).placeholder("Search systems"));
+        let emu_subscription = cx.subscribe_in(&emu_search, window, |this, state, event: &InputEvent, _, cx| {
+            if let InputEvent::Change = event {
+                this.emu_query = state.read(cx).value().to_string();
+                cx.notify();
+            }
+        });
         let focus_handle = cx.focus_handle();
         window.focus(&focus_handle, cx);
 
@@ -136,6 +159,8 @@ impl RootView {
             .flatten()
             .and_then(|id| systems::by_id(&id));
         let mut view = Self {
+            big_picture: None,
+            page: Page::System,
             selected: requested.unwrap_or(&systems::SYSTEMS[0]),
             enabled: Vec::new(),
             saved: config::load_enabled(),
@@ -152,6 +177,9 @@ impl RootView {
             view_mode: ViewMode::Grid,
             search,
             query: String::new(),
+            emu_search,
+            emu_query: String::new(),
+            maker_filter: None,
             scrape: None,
             installing: 0,
             quit_open: false,
@@ -162,7 +190,7 @@ impl RootView {
             detect_cache: Arc::default(),
             audit_generation: 0,
             focus_handle,
-            _subscriptions: vec![subscription],
+            _subscriptions: vec![subscription, emu_subscription],
         };
         cx.set_global(QuitTarget(cx.entity().downgrade()));
         // Closing the window (its close button, Alt+F4) asks first too.
@@ -181,6 +209,11 @@ impl RootView {
         #[cfg(debug_assertions)]
         cx.defer_in(window, Self::debug_startup);
         view
+    }
+
+    /// Switch to Big Picture, the TV mode (`--big-picture`).
+    pub fn big_picture(&mut self) {
+        self.enter_big_picture();
     }
 
     /// Show the keyboard focus from the start, for running fullscreen
@@ -215,13 +248,7 @@ impl RootView {
             Some("add-rom") => self.open_browser(window, cx),
             Some("add-rom-full") => self.open_browser_in(super::browser::Layout::Full, window, cx),
             Some("install-skyscraper") => super::details::confirm_install_skyscraper(window, cx),
-            // After the first audit, so suggestions show.
-            Some("add-system") => cx
-                .spawn_in(window, async move |this, cx| {
-                    cx.background_executor().timer(Duration::from_secs(1)).await;
-                    this.update_in(cx, super::details::open_add_system).ok();
-                })
-                .detach(),
+            Some("add-system") => self.open_emulators(window, cx),
             Some("remove-system") => super::details::confirm_remove_system(self.selected, window, cx),
             Some("move") => super::details::confirm_move_misplaced(self, window, cx),
             _ => {}
@@ -340,11 +367,39 @@ impl RootView {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.page = Page::System;
         self.selected = system;
         self.query.clear();
         self.search.update(cx, |s, cx| s.set_value("", window, cx));
         theme::apply_accent(system.accent, cx);
         self.refresh(cx);
+    }
+
+    /// Show the emulator library in the main column.
+    pub(super) fn open_emulators(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.page = Page::Emulators;
+        self.maker_filter = None;
+        self.emu_query.clear();
+        self.emu_search.update(cx, |s, cx| s.set_value("", window, cx));
+        self.nav.focus = super::nav::Focus::Library(0);
+        self.nav.scroll.set_offset(point(px(0.), px(0.)));
+        cx.notify();
+    }
+
+    /// The search field for the page showing.
+    pub(super) fn active_search(&self) -> &Entity<InputState> {
+        match self.page {
+            Page::System => &self.search,
+            Page::Emulators => &self.emu_search,
+        }
+    }
+
+    pub(super) fn clear_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        match self.page {
+            Page::System => self.query.clear(),
+            Page::Emulators => self.emu_query.clear(),
+        }
+        self.active_search().update(cx, |s, cx| s.set_value("", window, cx));
     }
 
     /// Games in the selected system matching the search box.
@@ -370,7 +425,7 @@ impl RootView {
     }
 
     fn focus_search(&mut self, _: &FocusSearch, window: &mut Window, cx: &mut Context<Self>) {
-        self.search.update(cx, |s, cx| s.focus(window, cx));
+        self.active_search().update(cx, |s, cx| s.focus(window, cx));
         let items = self.header_items(window.is_fullscreen());
         if let Some(ix) = items.iter().position(|i| *i == super::nav::HeaderItem::Search) {
             self.nav.focus = super::nav::Focus::Header(ix);
@@ -802,19 +857,19 @@ impl RootView {
         }
     }
 
-    /// Add `system` from the picker, move over any games that were waiting
-    /// for it, and switch to it.
-    pub(super) fn add_system(&mut self, system: &'static SystemDef, window: &mut Window, cx: &mut Context<Self>) {
+    /// Add `system` from the emulator library, staying on the page: the
+    /// sidebar gains the row, and the card shows it's listed.
+    pub(super) fn add_system_here(&mut self, system: &'static SystemDef, window: &mut Window, cx: &mut Context<Self>) {
         self.enable(system, window, cx);
         let waiting: Vec<Misplaced> = self.waiting_for(system).into_iter().cloned().collect();
         let moved = self.relocate(waiting, window, cx);
         let detail = if moved > 0 {
-            format!("Moved {moved} {} here that belonged to it.", if moved == 1 { "game" } else { "games" })
+            format!("Moved {moved} {} there that belonged to it.", if moved == 1 { "game" } else { "games" })
         } else {
-            format!("Drop its games here, or into ~/RetroPie/roms/{}.", system.folder)
+            "It's in your sidebar now. Open it to add games.".to_string()
         };
         window.push_notification(Notification::success(detail).title(format!("Added {}", system.display_name)), cx);
-        self.select_system(system, window, cx);
+        self.refresh(cx);
     }
 
     /// Take `system` out of the sidebar, deleting its games (the user has
@@ -972,7 +1027,9 @@ impl Render for RootView {
             .bg(cx.theme().background)
             .text_color(cx.theme().foreground)
             .map(|root| {
-                if self.browser.as_ref().is_some_and(|b| b.layout == super::browser::Layout::Full) {
+                if self.big_picture.is_some() {
+                    root.child(self.render_big_picture(window, cx))
+                } else if self.browser.as_ref().is_some_and(|b| b.layout == super::browser::Layout::Full) {
                     root.child(self.render_full_browser(cx))
                 } else {
                     root.child(self.render_sidebar(window.is_fullscreen(), cx)).child(self.render_main(window, cx))
