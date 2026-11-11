@@ -22,10 +22,11 @@ use std::time::Duration;
 use super::details;
 use super::motion;
 use super::root::RootView;
-use super::scale::px;
+use super::scale::{self, px};
 use super::shape;
 use super::sidebar::logo_plate;
 use crate::assets;
+use crate::covers;
 use crate::library::GameEntry;
 use crate::scraper::ScrapeStatus;
 use crate::theme;
@@ -325,7 +326,7 @@ impl RootView {
                     div()
                         .absolute()
                         .inset_0()
-                        .child(img(path.clone()).size_full().object_fit(ObjectFit::Cover))
+                        .child(img(covers::sized(&path, scale::large_art())).size_full().object_fit(ObjectFit::Cover))
                         .with_animation(
                             SharedString::from(format!("bp-cover-{}", path.display())),
                             Animation::new(Duration::from_millis(420)).with_easing(ease_in_out),
@@ -496,7 +497,7 @@ impl RootView {
                             .rounded(shape::md())
                             .overflow_hidden()
                             .map(|d| match cover {
-                                Some(path) => d.bg(black()).child(img(path).size_full().object_fit(ObjectFit::Cover)),
+                                Some(path) => d.bg(black()).child(img(covers::sized(&path, scale::small_art())).size_full().object_fit(ObjectFit::Cover)),
                                 None => d
                                     .bg(placeholder_fill(accent, &title))
                                     .flex()
