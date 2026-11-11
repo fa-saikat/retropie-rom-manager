@@ -18,9 +18,18 @@ dirs = "5"
 anyhow = "1"
 # Read-only parse of EmulationStation's gamelist.xml.
 roxmltree = "0.20"
+# Shrinks scraped covers to their on-screen size (see covers.rs). GPUI
+# already builds this crate with these formats, so it adds no new code.
+image = { version = "0.25", default-features = false, features = ["png", "jpeg"] }
 # GPUI logs its GPU adapter choice; RUST_LOG=info shows it.
 env_logger = { version = "0.11", default-features = false, features = ["auto-color"] }
 log = "0.4"
+
+[profile.release]
+# Whole-program optimisation: faster layout and animation math on slow CPUs
+# (e.g. Celeron J4125). No effect on what's drawn.
+lto = "thin"
+codegen-units = 1
 
 [patch.crates-io]
 # gpui-pre-wgpu 0.3.8 with a fix for GL drivers without vertex storage

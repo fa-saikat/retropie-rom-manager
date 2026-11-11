@@ -13,13 +13,26 @@
 use std::sync::OnceLock;
 
 use gpui_kit::component::{ActiveTheme, Theme};
-use gpui_kit::{size, App, Pixels, Size};
+use gpui_kit::{size, App, Pixels, Size, Window};
 
 const BASE_HEIGHT: f32 = 1080.;
 const MAX_FACTOR: f32 = 3.;
 
 static FACTOR: OnceLock<f32> = OnceLock::new();
 static BASE_THEME: OnceLock<ThemeSizes> = OnceLock::new();
+static ART: OnceLock<ArtSizes> = OnceLock::new();
+
+/// The biggest small art slot, in 1080p pixels: a library card can be up to
+/// twice its 236px minimum plus a gap, and the focused Big Picture tile is
+/// 240px. Both are square.
+const SMALL_ART: f32 = 512.;
+
+/// Device-pixel sizes the shrunk cover copies must cover (see `covers`).
+#[derive(Clone, Copy)]
+struct ArtSizes {
+    small: (u32, u32),
+    large: (u32, u32),
+}
 
 /// The theme's sizes before scaling, so scaling can be re-applied after a
 /// light/dark switch reloads them.
@@ -54,6 +67,34 @@ fn factor_for(display_height: Option<f32>) -> f32 {
 
 pub fn factor() -> f32 {
     FACTOR.get().copied().unwrap_or(1.)
+}
+
+/// Fix the art slot sizes for this session. Called from the first frame,
+/// when the window's scale factor (logical to device pixels) is real; later
+/// calls do nothing, so a cover never switches files mid-session.
+pub fn init_art(window: &Window, cx: &App) {
+    if ART.get().is_some() {
+        return;
+    }
+    let device = window.scale_factor();
+    let small = (SMALL_ART * factor() * device).ceil() as u32;
+    // Backdrops fill the screen, so without its size (Wayland may not say)
+    // they keep their full-size originals.
+    let large = display_size(cx).map_or((u32::MAX, u32::MAX), |screen| {
+        ((screen.width.as_f32() * device).ceil() as u32, (screen.height.as_f32() * device).ceil() as u32)
+    });
+    log::info!("Cover copies: small {small}px, large {large:?} (u32::MAX = originals)");
+    let _ = ART.set(ArtSizes { small: (small, small), large });
+}
+
+/// Minimum size for art in small slots: tiles, cards, thumbnails, box art.
+pub fn small_art() -> (u32, u32) {
+    ART.get().map_or((u32::MAX, u32::MAX), |a| a.small)
+}
+
+/// Minimum size for art that can fill the screen: backdrops and banners.
+pub fn large_art() -> (u32, u32) {
+    ART.get().map_or((u32::MAX, u32::MAX), |a| a.large)
 }
 
 /// A size given in 1080p pixels, scaled for this display.

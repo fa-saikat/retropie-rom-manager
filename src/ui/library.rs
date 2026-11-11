@@ -20,9 +20,10 @@ use gpui_kit::*;
 use super::details;
 use super::nav::{self, HeaderItem, LibItem};
 use super::root::{Page, RootView, ViewMode};
-use super::scale::px;
+use super::scale::{self, px};
 use super::shape;
 use super::sidebar::{logo_plate, system_glyph, system_tile};
+use crate::covers;
 use crate::library::GameEntry;
 use crate::scraper::ScrapeStatus;
 use crate::systems::SystemDef;
@@ -741,7 +742,7 @@ impl RootView {
                     let (bg, fg, mono) = (t.muted, t.muted_foreground, entry.monogram());
                     let loading = mono.clone();
                     art.child(
-                        img(path)
+                        img(covers::sized(&path, scale::small_art()))
                             .size_full()
                             .object_fit(ObjectFit::Cover)
                             .with_loading(move || initials_tile(bg, fg, loading.clone()).into_any_element())
@@ -910,7 +911,7 @@ impl RootView {
                         .font_bold()
                         .text_color(t.muted_foreground)
                         .map(|thumb| match thumb_cover {
-                            Some(path) => thumb.child(img(path).size_full().object_fit(ObjectFit::Cover)),
+                            Some(path) => thumb.child(img(covers::sized(&path, scale::small_art())).size_full().object_fit(ObjectFit::Cover)),
                             None => thumb.child(entry.monogram()),
                         }),
                 )
