@@ -16,7 +16,7 @@ You'll need a recent stable Rust toolchain and the headers GPUI links against. O
 
 ```sh
 sudo apt install libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
-  libx11-xcb-dev libxcb1-dev libfontconfig-dev libfreetype-dev libvulkan-dev libzstd-dev
+  libx11-xcb-dev libxcb1-dev libfontconfig-dev libfreetype-dev libvulkan-dev libzstd-dev libudev-dev
 ```
 
 Then:

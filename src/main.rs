@@ -4,6 +4,7 @@ mod cli;
 mod config;
 mod covers;
 mod detect;
+mod gamepad;
 mod launch;
 mod library;
 mod scraper;
@@ -147,6 +148,7 @@ fn main() {
             })
             .expect("failed to open window");
 
+            gamepad::start(cx);
             cx.activate(true);
         });
 }
