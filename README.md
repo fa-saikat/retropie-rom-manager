@@ -84,7 +84,7 @@ Also:
 - **A details panel for every game**: description, developer, publisher,
   genre, rating, which media types were saved, and every file on disk with its
   size.
-- **Grid and list views**, search (press `/`), and light and dark themes.
+- **Grid and list views**, search (press `/`), and light and dark themes (the last one you picked is kept).
 - **Games already in the wrong folder** get a warning and a one-click move. If
   the right system isn't in your list yet, the app adds it.
 - **Scales up on 1440p and 4K screens**, so it looks the same as at 1080p.
@@ -138,7 +138,7 @@ the board, OS and the terminal output.
 |-----------------------|--------|
 | `--big-picture`       | Start in Big Picture, a TV mode laid out like a games console: your systems as tabs, games in a row, a big Play button. Always fullscreen and dark. Q/E or Page Up/Down switch systems (L1/R1 on a gamepad mapped to those keys, with AntiMicroX say). |
 | `--fullscreen`        | Run in fullscreen, e.g. on a TV. Fullscreen comes only from this option, so there's no key to switch it on or off. |
-| `--theme light\|dark` | Start in the light or dark theme |
+| `--theme light\|dark` | Start in the light or dark theme. Without it, the app opens in the theme you last picked (light the first time). |
 | `-h`, `--help`        | Print the options and exit |
 | `-V`, `--version`     | Print the version and exit |
 

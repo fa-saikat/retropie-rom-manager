@@ -12,7 +12,7 @@ use std::path::PathBuf;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use crate::config;
+use crate::{cli, config};
 use crate::detect;
 use crate::launch;
 use crate::library::{self, GameEntry};
@@ -448,6 +448,10 @@ impl RootView {
 
     pub(super) fn toggle_theme(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         theme::toggle_mode(self.selected.accent, window, cx);
+        let picked = if cx.theme().is_dark() { cli::Theme::Dark } else { cli::Theme::Light };
+        if let Err(err) = config::save_theme(picked) {
+            log::warn!("couldn't save the theme: {err}");
+        }
         cx.notify();
     }
 
