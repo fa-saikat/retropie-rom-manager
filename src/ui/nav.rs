@@ -47,8 +47,6 @@ pub struct Nav {
     /// The ring shows once a key is pressed and hides on a mouse click, so
     /// it never sits on something nobody picked.
     pub(super) visible: bool,
-    /// Header item to come back to from the library.
-    last_header: Option<usize>,
     pub(super) scroll: ScrollHandle,
     /// Scroll the focused card into view on the next paint.
     pub(super) reveal: Rc<Cell<bool>>,
@@ -59,7 +57,6 @@ impl Nav {
         Self {
             focus: Focus::Library(0),
             visible: false,
-            last_header: None,
             scroll: ScrollHandle::new(),
             reveal: Rc::default(),
         }
@@ -122,26 +119,35 @@ impl RootView {
         items
     }
 
-    pub(super) fn header_items(&self, fullscreen: bool) -> Vec<HeaderItem> {
+    /// The header's items, row by row as they're drawn: the title row's
+    /// buttons, the notice's button, then search and the view switch just
+    /// above the games. Up and Down move between rows (#58).
+    pub(super) fn header_rows(&self, fullscreen: bool) -> Vec<Vec<HeaderItem>> {
         if self.page == Page::Emulators {
-            return std::iter::once(HeaderItem::Maker(None))
+            return vec![std::iter::once(HeaderItem::Maker(None))
                 .chain(systems::MAKERS.iter().map(|m| HeaderItem::Maker(Some(*m))))
                 .chain([HeaderItem::Search])
-                .collect();
+                .collect()];
         }
-        let mut items = Vec::new();
+        let mut title = Vec::new();
         if !fullscreen {
-            items.push(HeaderItem::Folder);
+            title.push(HeaderItem::Folder);
         }
         if self.skyscraper_installed && !self.games.is_empty() {
-            items.push(HeaderItem::Scrape);
+            title.push(HeaderItem::Scrape);
         }
-        items.push(HeaderItem::AddRom);
+        title.push(HeaderItem::AddRom);
+        let mut rows = vec![title];
         if self.notice_action().is_some() {
-            items.push(HeaderItem::Notice);
+            rows.push(vec![HeaderItem::Notice]);
         }
-        items.extend([HeaderItem::Search, HeaderItem::View]);
-        items
+        rows.push(vec![HeaderItem::Search, HeaderItem::View]);
+        rows
+    }
+
+    /// All header items in one list; `Focus::Header` indexes into it.
+    pub(super) fn header_items(&self, fullscreen: bool) -> Vec<HeaderItem> {
+        self.header_rows(fullscreen).concat()
     }
 
     pub(super) fn library_items(&self) -> Vec<LibItem> {
@@ -215,19 +221,54 @@ impl RootView {
         self.nav.focus = Focus::Sidebar(self.current_system_index(fullscreen));
     }
 
-    fn focus_header(&mut self, fullscreen: bool) {
-        let items = self.header_items(fullscreen);
-        let add = items.iter().position(|i| *i == HeaderItem::AddRom).unwrap_or(0);
-        let ix = self.nav.last_header.filter(|i| *i < items.len()).unwrap_or(add);
-        self.nav.focus = Focus::Header(ix);
+    /// Focus header row `row`, coming from the row below or above: Scrape
+    /// (or Add ROM without it) on the title row, otherwise the row's first
+    /// item, which is search on the row above the games.
+    fn focus_header_row(&mut self, row: usize, fullscreen: bool) {
+        let rows = self.header_rows(fullscreen);
+        let Some(items) = rows.get(row) else { return };
+        let start: usize = rows[..row].iter().map(Vec::len).sum();
+        let col = [HeaderItem::Scrape, HeaderItem::AddRom]
+            .iter()
+            .find_map(|wanted| items.iter().position(|i| i == wanted))
+            .unwrap_or(0);
+        self.nav.focus = Focus::Header(start + col);
         self.nav.scroll.set_offset(point(px(0.), px(0.)));
+    }
+
+    /// The header row nearest the games.
+    fn focus_header(&mut self, fullscreen: bool) {
+        let last = self.header_rows(fullscreen).len().saturating_sub(1);
+        self.focus_header_row(last, fullscreen);
+    }
+
+    /// Focus a header item by what it is, if it's shown.
+    fn focus_header_item(&mut self, item: HeaderItem, fullscreen: bool) -> bool {
+        match self.header_items(fullscreen).iter().position(|i| *i == item) {
+            Some(ix) => {
+                self.nav.focus = Focus::Header(ix);
+                self.nav.scroll.set_offset(point(px(0.), px(0.)));
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Row and column of header item `ix`.
+    fn header_pos(&self, ix: usize, fullscreen: bool) -> Option<(usize, usize, usize)> {
+        let mut start = 0;
+        for (row, items) in self.header_rows(fullscreen).iter().enumerate() {
+            if ix < start + items.len() {
+                return Some((row, ix - start, items.len()));
+            }
+            start += items.len();
+        }
+        None
     }
 
     /// The first card, or the search field when nothing matches.
     pub(super) fn focus_library(&mut self, fullscreen: bool) {
         if self.library_items().is_empty() {
-            let items = self.header_items(fullscreen);
-            self.nav.last_header = items.iter().position(|i| *i == HeaderItem::Search);
             self.focus_header(fullscreen);
         } else {
             self.set_library_focus(0);
@@ -295,7 +336,14 @@ impl RootView {
                 self.nav.focus = Focus::Sidebar(i.saturating_sub(1));
                 self.sidebar_moved(window, cx);
             }
-            Focus::Header(_) => {}
+            Focus::Header(i) => {
+                let fullscreen = window.is_fullscreen();
+                if let Some((row, _, _)) = self.header_pos(i, fullscreen) {
+                    if row > 0 {
+                        self.focus_header_row(row - 1, fullscreen);
+                    }
+                }
+            }
             Focus::Library(i) => {
                 let columns = self.library_columns(window);
                 if i < columns {
@@ -320,9 +368,18 @@ impl RootView {
                 self.nav.focus = Focus::Sidebar((i + 1).min(last));
                 self.sidebar_moved(window, cx);
             }
-            Focus::Header(_) => {
-                if !self.library_items().is_empty() {
-                    self.set_library_focus(0);
+            Focus::Header(i) => {
+                let fullscreen = window.is_fullscreen();
+                let rows = self.header_rows(fullscreen).len();
+                match self.header_pos(i, fullscreen) {
+                    Some((row, _, _)) if row + 1 < rows => self.focus_header_row(row + 1, fullscreen),
+                    _ if self.library_items().is_empty() => {}
+                    // The view switch sits above the top row's last card.
+                    _ if self.focused_header(fullscreen) == Some(HeaderItem::View) => {
+                        let columns = self.library_columns(window);
+                        self.set_library_focus(columns.min(self.library_items().len()) - 1);
+                    }
+                    _ => self.set_library_focus(0),
                 }
             }
             Focus::Library(i) => {
@@ -348,11 +405,10 @@ impl RootView {
         let fullscreen = window.is_fullscreen();
         match self.nav.focus {
             Focus::Sidebar(_) => {}
-            Focus::Header(0) => self.focus_sidebar(fullscreen),
-            Focus::Header(i) => {
-                self.nav.focus = Focus::Header(i - 1);
-                self.nav.last_header = Some(i - 1);
-            }
+            Focus::Header(i) => match self.header_pos(i, fullscreen) {
+                Some((_, col, _)) if col > 0 => self.nav.focus = Focus::Header(i - 1),
+                _ => self.focus_sidebar(fullscreen),
+            },
             Focus::Library(i) => {
                 if i % self.library_columns(window) == 0 {
                     self.focus_sidebar(fullscreen);
@@ -374,15 +430,19 @@ impl RootView {
         match self.nav.focus {
             Focus::Sidebar(_) => self.focus_library(fullscreen),
             Focus::Header(i) => {
-                if i + 1 < self.header_items(fullscreen).len() {
-                    self.nav.focus = Focus::Header(i + 1);
-                    self.nav.last_header = Some(i + 1);
+                if let Some((_, col, len)) = self.header_pos(i, fullscreen) {
+                    if col + 1 < len {
+                        self.nav.focus = Focus::Header(i + 1);
+                    }
                 }
             }
             Focus::Library(i) => {
                 let columns = self.library_columns(window);
                 if i % columns + 1 < columns && i + 1 < self.library_items().len() {
                     self.set_library_focus(i + 1);
+                } else if i < columns {
+                    // The top row's last card: on to the view switch above it.
+                    self.focus_header_item(HeaderItem::View, fullscreen);
                 }
             }
         }
