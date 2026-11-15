@@ -49,8 +49,9 @@ fn main() {
             if let Err(err) = cx.text_system().add_fonts(assets::fonts()) {
                 log::warn!("couldn't load the bundled fonts: {err}");
             }
-            // Big Picture is drawn for the dark scheme only.
-            let mode = match options.theme {
+            // Big Picture is drawn for the dark scheme only. Otherwise
+            // --theme, then the theme last picked in the app.
+            let mode = match options.theme.or_else(config::load_theme) {
                 _ if options.big_picture => ThemeMode::Dark,
                 Some(cli::Theme::Dark) => ThemeMode::Dark,
                 Some(cli::Theme::Light) | None => ThemeMode::Light,
