@@ -13,7 +13,7 @@
 <p align="center">
   <a href="#features">Features</a> ·
   <a href="#installing">Install</a> ·
-  <a href="#keyboard">Keyboard</a> ·
+  <a href="#keyboard-and-gamepad">Keyboard &amp; gamepad</a> ·
   <a href="#how-it-works">How it works</a> ·
   <a href="#limitations">Limitations</a> ·
   <a href="#building">Build</a> ·
@@ -70,7 +70,7 @@ you never have to open a file manager or SSH into `~/RetroPie/roms`.
     </td>
     <td valign="top">
       <img src="docs/screenshots/keyboard.gif" alt="ROM Manager in fullscreen, moving between systems and games with the keyboard">
-      <p><b>Works without a mouse.</b> In fullscreen on a TV, the arrow keys, Enter and Backspace reach everything, so a gamepad mapped to those keys drives the whole app.</p>
+      <p><b>Works without a mouse.</b> In fullscreen on a TV, the arrow keys, Enter and Backspace reach everything, and a gamepad drives the whole app with no extra software.</p>
     </td>
   </tr>
 </table>
@@ -136,7 +136,7 @@ the board, OS and the terminal output.
 
 | Option                | Effect |
 |-----------------------|--------|
-| `--big-picture`       | Start in Big Picture, a TV mode laid out like a games console: your systems as tabs, games in a row, a big Play button. Always fullscreen and dark. Q/E or Page Up/Down switch systems (L1/R1 on a gamepad mapped to keys). |
+| `--big-picture`       | Start in Big Picture, a TV mode laid out like a games console: your systems as tabs, games in a row, a big Play button. Always fullscreen and dark. Q/E or Page Up/Down switch systems (L1/R1 on a gamepad mapped to those keys, with AntiMicroX say). |
 | `--fullscreen`        | Run in fullscreen, e.g. on a TV. Fullscreen comes only from this option, so there's no key to switch it on or off. |
 | `--theme light\|dark` | Start in the light or dark theme |
 | `-h`, `--help`        | Print the options and exit |
@@ -145,12 +145,11 @@ the board, OS and the terminal output.
 To make the UI bigger or smaller than it picks for your screen, set the scale
 yourself, e.g. `ROM_MANAGER_SCALE=1.5 retropie-rom-manager`.
 
-## Keyboard
+## Keyboard and gamepad
 
 Everything works without a mouse, from the arrow keys, Enter and Backspace
-alone, so a gamepad mapped to those keys (with AntiMicroX, say) drives the
-whole app. A ring shows where you are once you press a key; in fullscreen it
-shows from the start.
+alone, or from a gamepad. A ring shows where you are once you press a key or
+a button; in fullscreen it shows from the start.
 
 | Key        | Effect |
 |------------|--------|
@@ -164,6 +163,24 @@ shows from the start.
 In dialogs, the arrow keys move between the buttons and Enter presses the one
 with the ring. Confirmations open on **Cancel**, so a stray Enter never deletes
 anything.
+
+Gamepads are read directly, with no AntiMicroX or other mapping software.
+Buttons go by position, as on consoles, whatever is printed on them, so any
+common pad (Xbox, PlayStation, Logitech, 8BitDo…) works the same way:
+
+| Button                     | Same as    |
+|----------------------------|------------|
+| D-pad, left stick          | Arrow keys (held, they repeat) |
+| A / ✕ (bottom)             | Enter      |
+| B / ○ (right)              | Esc: go back, close a sheet or dialog, close the file browser |
+| X / □ (left)               | X: delete  |
+| Y / △ (top)                | S: scrape  |
+
+The pad only works while ROM Manager's window is in front, so a game you start
+from it keeps the pad to itself. The guide button, Select, Start and the
+shoulder buttons aren't used. A pad without a built-in mapping can be given
+one through `SDL_GAMECONTROLLERCONFIG`, the same as for SDL games. Running the
+app with `RUST_LOG=info` logs each pad it finds and where its mapping came from.
 
 ## How it works
 
@@ -254,7 +271,7 @@ the development headers GPUI links against. On Debian or Ubuntu:
 
 ```sh
 sudo apt install libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev \
-  libx11-xcb-dev libxcb1-dev libfontconfig-dev libfreetype-dev libvulkan-dev libzstd-dev
+  libx11-xcb-dev libxcb1-dev libfontconfig-dev libfreetype-dev libvulkan-dev libzstd-dev libudev-dev
 ```
 
 Build and run:
