@@ -30,7 +30,8 @@ use image::ImageFormat;
 const WORTH_IT: f64 = 0.9;
 
 /// Which file each (original, min) draws from this session.
-static CHOSEN: OnceLock<Mutex<HashMap<(PathBuf, (u32, u32)), PathBuf>>> = OnceLock::new();
+type Chosen = HashMap<(PathBuf, (u32, u32)), PathBuf>;
+static CHOSEN: OnceLock<Mutex<Chosen>> = OnceLock::new();
 /// The background worker's queue.
 static QUEUE: OnceLock<Sender<Job>> = OnceLock::new();
 
