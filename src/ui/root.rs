@@ -1008,6 +1008,8 @@ impl Focusable for RootView {
 
 impl Render for RootView {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // Before any cover is drawn, once the window knows its real scale.
+        super::scale::init_art(window, cx);
         // The arrow and letter keys only drive the window while it has focus
         // itself, not while the search field does.
         let context = if self.focus_handle.is_focused(window) {

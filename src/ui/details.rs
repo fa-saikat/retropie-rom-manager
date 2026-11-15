@@ -19,9 +19,10 @@ use std::rc::Rc;
 
 use super::nav::{self, focus_button};
 use super::root::RootView;
-use super::scale::px;
+use super::scale::{self, px};
 use super::shape;
 use super::sidebar::system_glyph;
+use crate::covers;
 use crate::detect;
 use crate::library::{self, GameEntry};
 use crate::scraper::{self, GameMeta, MediaState, ScrapeStatus};
@@ -142,7 +143,7 @@ fn render_body(s: &Snapshot, cx: &App) -> impl IntoElement {
             .rounded(t.radius_lg)
             .overflow_hidden()
             .bg(t.muted)
-            .child(img(path).size_full().object_fit(ObjectFit::Cover))
+            .child(img(covers::sized(&path, scale::large_art())).size_full().object_fit(ObjectFit::Cover))
     });
 
     let box_art = div()
@@ -162,7 +163,7 @@ fn render_body(s: &Snapshot, cx: &App) -> impl IntoElement {
         .font_bold()
         .text_color(t.muted_foreground)
         .map(|b| match cover {
-            Some(path) => b.child(img(path).size_full().object_fit(ObjectFit::Cover)),
+            Some(path) => b.child(img(covers::sized(&path, scale::small_art())).size_full().object_fit(ObjectFit::Cover)),
             None => b.child(s.entry.monogram()),
         });
 
@@ -346,7 +347,7 @@ fn render_media(s: &Snapshot, cx: &App) -> impl IntoElement {
                     .border_1()
                     .border_color(t.border)
                     .bg(t.muted)
-                    .child(img(path.clone()).size_full().object_fit(ObjectFit::Cover)),
+                    .child(img(covers::sized(path, scale::small_art())).size_full().object_fit(ObjectFit::Cover)),
                 "Saved",
             ),
             other => (

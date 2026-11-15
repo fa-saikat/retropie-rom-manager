@@ -2,6 +2,7 @@ mod assets;
 mod browse;
 mod cli;
 mod config;
+mod covers;
 mod detect;
 mod launch;
 mod library;
