@@ -106,6 +106,74 @@ pub enum LibItem {
     Game(usize),
 }
 
+/// Cards in groups, each group starting its own rows of `columns`. Moves
+/// return the card to go to, or `None` at an edge.
+struct Grid {
+    groups: Vec<usize>,
+    columns: usize,
+}
+
+/// Where a card is: its group, the group's first card, its row in the
+/// group and its column.
+struct Spot {
+    group: usize,
+    start: usize,
+    row: usize,
+    col: usize,
+}
+
+impl Grid {
+    fn locate(&self, ix: usize) -> Option<Spot> {
+        let mut start = 0;
+        for (group, len) in self.groups.iter().enumerate() {
+            if ix < start + len {
+                let at = ix - start;
+                return Some(Spot { group, start, row: at / self.columns, col: at % self.columns });
+            }
+            start += len;
+        }
+        None
+    }
+
+    /// Card `col` of row `row` in a group of `len` cards from `start`, or
+    /// the row's last card when it's shorter.
+    fn at(&self, start: usize, len: usize, row: usize, col: usize) -> usize {
+        start + (row * self.columns + col).min(len - 1)
+    }
+
+    fn up(&self, ix: usize) -> Option<usize> {
+        let c = self.locate(ix)?;
+        if c.row > 0 {
+            return Some(self.at(c.start, self.groups[c.group], c.row - 1, c.col));
+        }
+        // The last row of the group above.
+        let group = c.group.checked_sub(1)?;
+        let len = self.groups[group];
+        Some(self.at(c.start - len, len, (len - 1) / self.columns, c.col))
+    }
+
+    fn down(&self, ix: usize) -> Option<usize> {
+        let c = self.locate(ix)?;
+        let len = self.groups[c.group];
+        if c.row < (len - 1) / self.columns {
+            return Some(self.at(c.start, len, c.row + 1, c.col));
+        }
+        // The first row of the next group with cards in it.
+        let next = *self.groups.get(c.group + 1)?;
+        (next > 0).then(|| self.at(c.start + len, next, 0, c.col))
+    }
+
+    fn left(&self, ix: usize) -> Option<usize> {
+        let c = self.locate(ix)?;
+        (c.col > 0).then(|| ix - 1)
+    }
+
+    fn right(&self, ix: usize) -> Option<usize> {
+        let c = self.locate(ix)?;
+        (c.col + 1 < self.columns && ix + 1 < c.start + self.groups[c.group]).then_some(ix + 1)
+    }
+}
+
 impl RootView {
     pub(super) fn sidebar_items(&self, fullscreen: bool) -> Vec<SideItem> {
         let mut items: Vec<SideItem> = self.enabled.iter().map(|s| SideItem::System(s)).collect();
@@ -175,6 +243,17 @@ impl RootView {
             return 1;
         }
         super::library::grid_columns(window) as usize
+    }
+
+    /// The library's cards as the keys see them: the emulator page's
+    /// categories each start their own rows (#59).
+    fn library_grid(&self, window: &Window) -> Grid {
+        let groups = if self.page == Page::Emulators {
+            self.emulator_groups().iter().map(|g| g.systems.len()).collect()
+        } else {
+            vec![self.library_items().len()]
+        };
+        Grid { groups, columns: self.library_columns(window).max(1) }
     }
 
     // What has the ring, for drawing it.
@@ -344,14 +423,10 @@ impl RootView {
                     }
                 }
             }
-            Focus::Library(i) => {
-                let columns = self.library_columns(window);
-                if i < columns {
-                    self.focus_header(window.is_fullscreen());
-                } else {
-                    self.set_library_focus(i - columns);
-                }
-            }
+            Focus::Library(i) => match self.library_grid(window).up(i) {
+                Some(ix) => self.set_library_focus(ix),
+                None => self.focus_header(window.is_fullscreen()),
+            },
         }
     }
 
@@ -383,13 +458,8 @@ impl RootView {
                 }
             }
             Focus::Library(i) => {
-                let columns = self.library_columns(window);
-                let len = self.library_items().len();
-                if i + columns < len {
-                    self.set_library_focus(i + columns);
-                } else if i / columns < (len - 1) / columns {
-                    // A short last row: land on its last card.
-                    self.set_library_focus(len - 1);
+                if let Some(ix) = self.library_grid(window).down(i) {
+                    self.set_library_focus(ix);
                 }
             }
         }
@@ -409,13 +479,10 @@ impl RootView {
                 Some((_, col, _)) if col > 0 => self.nav.focus = Focus::Header(i - 1),
                 _ => self.focus_sidebar(fullscreen),
             },
-            Focus::Library(i) => {
-                if i % self.library_columns(window) == 0 {
-                    self.focus_sidebar(fullscreen);
-                } else {
-                    self.set_library_focus(i - 1);
-                }
-            }
+            Focus::Library(i) => match self.library_grid(window).left(i) {
+                Some(ix) => self.set_library_focus(ix),
+                None => self.focus_sidebar(fullscreen),
+            },
         }
     }
 
@@ -437,10 +504,10 @@ impl RootView {
                 }
             }
             Focus::Library(i) => {
-                let columns = self.library_columns(window);
-                if i % columns + 1 < columns && i + 1 < self.library_items().len() {
-                    self.set_library_focus(i + 1);
-                } else if i < columns {
+                let grid = self.library_grid(window);
+                if let Some(ix) = grid.right(i) {
+                    self.set_library_focus(ix);
+                } else if grid.up(i).is_none() {
                     // The top row's last card: on to the view switch above it.
                     self.focus_header_item(HeaderItem::View, fullscreen);
                 }
@@ -789,3 +856,67 @@ pub(super) fn focus_when_open(handle: FocusHandle, window: &mut Window) {
     window.on_next_frame(move |window, cx| window.focus(&handle, cx));
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::Grid;
+
+    /// The example from #59: Nintendo's 9 cards then Sega's 7, six a row.
+    fn nintendo_sega() -> Grid {
+        Grid { groups: vec![9, 7], columns: 6 }
+    }
+
+    #[test]
+    fn down_stays_in_the_group_while_it_has_rows() {
+        let g = nintendo_sega();
+        assert_eq!(g.down(0), Some(6));
+        assert_eq!(g.down(2), Some(8));
+        // Nothing right under the 4th to 6th: the second row's last card.
+        assert_eq!(g.down(3), Some(8));
+        assert_eq!(g.down(5), Some(8));
+    }
+
+    #[test]
+    fn down_from_a_groups_last_row_goes_to_the_next_group() {
+        let g = nintendo_sega();
+        assert_eq!(g.down(6), Some(9));
+        assert_eq!(g.down(8), Some(11));
+        // Sega's second row has one card.
+        assert_eq!(g.down(14), Some(15));
+        assert_eq!(g.down(15), None);
+    }
+
+    #[test]
+    fn up_goes_to_the_last_row_of_the_group_above() {
+        let g = nintendo_sega();
+        assert_eq!(g.up(9), Some(6));
+        assert_eq!(g.up(11), Some(8));
+        // Under the 4th to 6th Nintendo column there's no second-row card.
+        assert_eq!(g.up(13), Some(8));
+        assert_eq!(g.up(15), Some(9));
+        assert_eq!(g.up(6), Some(0));
+        assert_eq!(g.up(3), None);
+    }
+
+    #[test]
+    fn left_and_right_stop_at_row_and_group_ends() {
+        let g = nintendo_sega();
+        assert_eq!(g.right(4), Some(5));
+        assert_eq!(g.right(5), None);
+        assert_eq!(g.right(8), None);
+        assert_eq!(g.left(6), None);
+        assert_eq!(g.left(9), None);
+        assert_eq!(g.left(10), Some(9));
+    }
+
+    #[test]
+    fn one_group_is_the_plain_grid() {
+        let g = Grid { groups: vec![7], columns: 5 };
+        assert_eq!(g.down(1), Some(6));
+        // A short last row: its last card.
+        assert_eq!(g.down(4), Some(6));
+        assert_eq!(g.down(6), None);
+        assert_eq!(g.up(6), Some(1));
+        assert_eq!(g.up(4), None);
+    }
+}
