@@ -1,6 +1,6 @@
 # System logos
 
-The logos in this folder are used by the app (library header, empty state, emulator library and Big Picture) and the HTML mockups in `design/`. They come from Wikimedia Commons, where each file is marked public domain because it is a simple text logo or not eligible for copyright. They are still trademarks of their owners.
+The logos in this folder are used by the app (library header, empty state, emulator library and Big Picture). They come from Wikimedia Commons, where each file is marked public domain because it is a simple text logo or not eligible for copyright. They are still trademarks of their owners.
 
 | File | Source | Trademark owner |
 |---|---|---|
