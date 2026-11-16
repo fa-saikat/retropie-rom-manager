@@ -15,7 +15,7 @@ mod ui;
 
 use gpui_kit::component::{dialog, Theme, ThemeMode};
 use gpui_kit::{size, AppContext, Bounds, KeyBinding, NoAction, Size, TitlebarOptions, WindowBounds, WindowOptions};
-use ui::nav;
+use ui::{nav, osk};
 use ui::scale::{self, px};
 
 /// The library's search field (kit inputs use the `Input` context).
@@ -106,6 +106,15 @@ fn main() {
                 KeyBinding::new("s", nav::Scrape, Some(nav::SHEET_CONTEXT)),
                 KeyBinding::new("x", nav::Remove, Some(nav::SHEET_CONTEXT)),
                 KeyBinding::new("backspace", dialog::Cancel, Some("Sheet")),
+                // The on-screen keyboard (fullscreen search).
+                KeyBinding::new("up", osk::Up, Some(osk::KEY_CONTEXT)),
+                KeyBinding::new("down", osk::Down, Some(osk::KEY_CONTEXT)),
+                KeyBinding::new("left", osk::Left, Some(osk::KEY_CONTEXT)),
+                KeyBinding::new("right", osk::Right, Some(osk::KEY_CONTEXT)),
+                KeyBinding::new("enter", osk::Press, Some(osk::KEY_CONTEXT)),
+                KeyBinding::new("backspace", osk::Erase, Some(osk::KEY_CONTEXT)),
+                KeyBinding::new("space", osk::Space, Some(osk::KEY_CONTEXT)),
+                KeyBinding::new("escape", osk::Close, Some(osk::KEY_CONTEXT)),
             ]);
             cx.on_action(|_: &ui::Quit, cx| ui::request_quit(cx));
 

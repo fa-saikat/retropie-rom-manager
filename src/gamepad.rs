@@ -31,7 +31,7 @@ use std::time::{Duration, Instant};
 use gilrs::{Axis, Button, EventType, Gilrs};
 use gpui_kit::{App, KeyDownEvent, KeyUpEvent, Keystroke, PlatformInput, Window};
 
-use crate::ui::nav;
+use crate::ui::{nav, osk};
 
 /// Hold a direction this long before it starts repeating...
 const REPEAT_DELAY: Duration = Duration::from_millis(350);
@@ -163,10 +163,24 @@ fn send(msg: Msg, window: &mut Window, cx: &mut App) {
         }
         Msg::Release(input) => (input, PlatformInput::KeyUp(KeyUpEvent { keystroke: keystroke(input) })),
     };
-    // X and S would type into the search field: send them only where
-    // they're bound.
-    if matches!(input, PadInput::Delete | PadInput::Scrape) && !window.context_stack().iter().any(|c| c.contains(nav::KEY_CONTEXT) || c.contains(nav::SHEET_CONTEXT)) {
-        return;
+    if matches!(input, PadInput::Delete | PadInput::Scrape) {
+        let in_context = |name: &str| window.context_stack().iter().any(|c| c.contains(name));
+        // On the on-screen keyboard X erases and Y types a space.
+        if in_context(osk::KEY_CONTEXT) {
+            let key = if input == PadInput::Delete { "backspace" } else { "space" };
+            let keystroke = Keystroke::parse(key).expect("a plain key name");
+            let event = match event {
+                PlatformInput::KeyDown(down) => PlatformInput::KeyDown(KeyDownEvent { keystroke, ..down }),
+                _ => PlatformInput::KeyUp(KeyUpEvent { keystroke }),
+            };
+            window.dispatch_event(event, cx);
+            return;
+        }
+        // Elsewhere X and S would type into the search field: send them
+        // only where they're bound.
+        if !in_context(nav::KEY_CONTEXT) && !in_context(nav::SHEET_CONTEXT) {
+            return;
+        }
     }
     window.dispatch_event(event, cx);
 }
