@@ -174,7 +174,7 @@ common pad (Xbox, PlayStation, Logitech, 8BitDo…) works the same way:
 | D-pad, left stick          | Arrow keys (held, they repeat) |
 | A / ✕ (bottom)             | Enter      |
 | B / ○ (right)              | Esc: go back, close a sheet or dialog, close the file browser |
-| X / □ (left)               | X: delete; on the on-screen keyboard, erase |
+| X / □ (left)               | X: delete; on the on-screen keyboard, delete a character |
 | Y / △ (top)                | S: scrape; on the on-screen keyboard, space |
 
 The pad only works while ROM Manager's window is in front, so a game you start
@@ -185,9 +185,10 @@ app with `RUST_LOG=info` logs each pad it finds and where its mapping came from.
 
 To search without a keyboard in fullscreen, move to the search field and press
 A (or Enter). An on-screen keyboard opens: the d-pad moves between keys, A
-types one, X erases, Y types a space and B closes the keyboard, keeping what
-you typed. **Done** goes to the matching games. A real keyboard can type
-straight in while it's open.
+types one, X deletes, Y types a space and B closes the keyboard, keeping what
+you typed. Shift capitalises the next letter, **?123** switches to symbols, and
+**Done** goes to the matching games. A real keyboard can type straight in
+while it's open.
 
 ## How it works
 

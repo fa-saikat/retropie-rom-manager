@@ -6,7 +6,9 @@
 //! B closes, and the pad sends Backspace for X and Space for Y here (see
 //! `gamepad.rs`). A real keyboard can still type straight in.
 //!
-//! Search ignores case, so there's no Shift.
+//! The layout is a staggered QWERTY with a digits row, Shift and Delete
+//! around the bottom letters, and `?123` for a page of the symbols game
+//! names use.
 
 use gpui_kit::component::{h_flex, v_flex, ActiveTheme, StyledExt};
 use gpui_kit::prelude::FluentBuilder;
@@ -23,73 +25,100 @@ pub const KEY_CONTEXT: &str = "OnScreenKeyboard";
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Key {
     Char(char),
+    /// Capitalise the next letter.
+    Shift,
+    /// Switch between letters and symbols.
+    Symbols,
     Space,
     Erase,
-    Clear,
     Done,
 }
 
-/// Every row is this many units wide.
-const UNITS: usize = 10;
+/// Rows are this many half-key units wide, so the staggered rows can sit
+/// half a key in.
+const UNITS: usize = 20;
 
-const CHAR_ROWS: [&str; 4] = ["1234567890", "qwertyuiop", "asdfghjkl-", "zxcvbnm'.&"];
-
-/// The bottom row: each key with its width in units.
-const BOTTOM: [(Key, usize); 4] = [(Key::Space, 4), (Key::Erase, 2), (Key::Clear, 2), (Key::Done, 2)];
+/// Each row's characters, on the letter page and the symbol page, and the
+/// unit its first character starts at. Every character key is 2 units.
+const CHAR_ROWS: [(&str, &str, usize); 4] = [
+    ("1234567890", "1234567890", 0),
+    ("qwertyuiop", "-/:;()&@\"'", 0),
+    ("asdfghjkl", "_,?!+=#%*", 1),
+    ("zxcvbnm", "~[]<>$^", 3),
+];
 
 const ROWS: usize = CHAR_ROWS.len() + 1;
 
-/// The keys of row `row`, each with its first unit and width.
-fn row_keys(row: usize) -> Vec<(Key, usize, usize)> {
-    match CHAR_ROWS.get(row) {
-        Some(chars) => chars.chars().enumerate().map(|(i, c)| (Key::Char(c), i, 1)).collect(),
-        None => {
-            let mut start = 0;
-            BOTTOM
-                .iter()
-                .map(|&(key, width)| {
-                    let key = (key, start, width);
-                    start += width;
-                    key
-                })
-                .collect()
+/// The keys of row `row`, each with its first unit and width in units.
+fn row_keys(row: usize, symbols: bool) -> Vec<(Key, usize, usize)> {
+    if let Some(&(letters, others, start)) = CHAR_ROWS.get(row) {
+        let chars = if symbols { others } else { letters };
+        let mut keys: Vec<_> = chars.chars().enumerate().map(|(i, c)| (Key::Char(c), start + 2 * i, 2)).collect();
+        // The bottom letter row has Shift before it and Delete after.
+        if start == 3 {
+            keys.insert(0, (Key::Shift, 0, 3));
+            keys.push((Key::Erase, 17, 3));
         }
+        return keys;
     }
+    vec![(Key::Symbols, 0, 3), (Key::Space, 3, 11), (Key::Char('.'), 14, 2), (Key::Done, 16, 4)]
 }
 
-/// Where the keyboard's highlight is: a row, and the unit it's over, so
-/// moving between rows of different widths keeps to the same column.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+/// Where the keyboard's highlight is, and its Shift and symbol state.
+/// `unit` is the middle of the highlighted key, so moving between rows of
+/// different widths keeps to the same column.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Osk {
     row: usize,
     unit: usize,
+    shift: bool,
+    symbols: bool,
+}
+
+impl Default for Osk {
+    /// On "q", as on a phone.
+    fn default() -> Self {
+        Self { row: 1, unit: 1, shift: false, symbols: false }
+    }
 }
 
 impl Osk {
     pub fn key(&self) -> Key {
-        self.cell().0
+        row_keys(self.row, self.symbols)[self.index()].0
     }
 
-    fn cell(&self) -> (Key, usize, usize) {
-        row_keys(self.row)
-            .into_iter()
-            .find(|(_, start, width)| (*start..start + width).contains(&self.unit))
-            .expect("every unit has a key")
+    /// The highlighted key's place in its row: the one under `unit`, or the
+    /// nearest where the row is set in.
+    fn index(&self) -> usize {
+        let keys = row_keys(self.row, self.symbols);
+        let distance = |&(_, start, width): &(Key, usize, usize)| {
+            if self.unit < start {
+                start - self.unit
+            } else {
+                self.unit.saturating_sub(start + width - 1)
+            }
+        };
+        (0..keys.len()).min_by_key(|&i| distance(&keys[i])).expect("rows aren't empty")
     }
 
     /// Up and down stop at the edges; left and right wrap around the row.
     pub fn step(&mut self, dx: i32, dy: i32) {
-        if dy < 0 {
-            self.row = self.row.saturating_sub(1);
-        } else if dy > 0 {
-            self.row = (self.row + 1).min(ROWS - 1);
+        if dy != 0 {
+            // Go from the key's middle, so a wide key leads to the key
+            // under its middle.
+            self.unit = self.middle(self.index());
+            self.row = if dy < 0 { self.row.saturating_sub(1) } else { (self.row + 1).min(ROWS - 1) };
         }
         if dx != 0 {
-            let (_, start, width) = self.cell();
-            self.unit = if dx < 0 { (start + UNITS - 1) % UNITS } else { (start + width) % UNITS };
-            // Land on the start of a wide key, so Right leaves it next time.
-            self.unit = self.cell().1;
+            let len = row_keys(self.row, self.symbols).len();
+            let i = (self.index() + if dx < 0 { len - 1 } else { 1 }) % len;
+            self.unit = self.middle(i);
         }
+    }
+
+    fn middle(&self, index: usize) -> usize {
+        let (_, start, width) = row_keys(self.row, self.symbols)[index];
+        start + (width - 1) / 2
     }
 }
 
@@ -127,11 +156,23 @@ impl RootView {
     }
 
     fn osk_press_key(&mut self, key: Key, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(osk) = &mut self.osk else { return };
         match key {
-            Key::Char(c) => self.osk_edit(|t| t.push(c), window, cx),
+            Key::Char(c) => {
+                let c = if osk.shift { c.to_ascii_uppercase() } else { c };
+                osk.shift = false;
+                self.osk_edit(|t| t.push(c), window, cx);
+            }
+            Key::Shift => {
+                osk.shift = !osk.shift;
+                cx.notify();
+            }
+            Key::Symbols => {
+                osk.symbols = !osk.symbols;
+                cx.notify();
+            }
             Key::Space => self.osk_edit(|t| t.push(' '), window, cx),
-            Key::Erase => self.osk_edit(|t| { t.pop(); }, window, cx),
-            Key::Clear => self.osk_edit(String::clear, window, cx),
+            Key::Erase => self.osk_edit(|t| _ = t.pop(), window, cx),
             Key::Done => {
                 self.close_osk(window, cx);
                 self.leave_search(window, cx);
@@ -154,10 +195,11 @@ impl RootView {
             return None;
         }
         let t = cx.theme();
-        let (unit_w, gap) = (64., 8.);
-        let placeholder = match self.page {
-            Page::System => "Search games",
-            Page::Emulators => "Search systems",
+        // One unit is half a key.
+        let (unit_w, gap) = (34., 8.);
+        let (title, placeholder) = match self.page {
+            Page::System => ("Search games", "Game name"),
+            Page::Emulators => ("Search systems", "System or maker"),
         };
         let text = self.osk_text();
         let shown = if text.is_empty() {
@@ -165,51 +207,73 @@ impl RootView {
         } else {
             div().child(format!("{text}▏"))
         };
+        let focused_ix = osk.index();
 
         let rows = (0..ROWS).map(|row| {
-            h_flex().gap(px(gap)).children(row_keys(row).into_iter().map(|(key, start, width)| {
-                let focused = osk.row == row && (start..start + width).contains(&osk.unit);
-                let label: SharedString = match key {
-                    Key::Char(c) => c.to_string().into(),
-                    Key::Space => "Space".into(),
-                    Key::Erase => "⌫ Erase".into(),
-                    Key::Clear => "Clear".into(),
-                    Key::Done => "Done".into(),
-                };
-                div()
-                    .id(("osk-key", row * UNITS + start))
-                    .w(px(unit_w * width as f32 + gap * (width as f32 - 1.)))
-                    .h(px(56.))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .rounded(t.radius)
-                    .text_xl()
-                    .font_medium()
-                    .cursor_pointer()
-                    .map(|k| {
-                        if focused {
-                            k.bg(t.primary).text_color(t.primary_foreground)
-                        } else if key == Key::Done {
-                            k.bg(t.secondary).text_color(t.primary)
-                        } else {
-                            k.bg(t.secondary).text_color(t.secondary_foreground)
-                        }
-                    })
-                    .child(label)
-                    .on_click(cx.listener(move |this, _, window, cx| {
-                        if let Some(osk) = &mut this.osk {
-                            *osk = Osk { row, unit: start };
-                        }
-                        this.osk_press_key(key, window, cx);
-                    }))
-            }))
+            let keys = row_keys(row, osk.symbols);
+            let indent = keys[0].1;
+            h_flex().pl(px(unit_w * indent as f32)).gap(px(gap)).children(keys.into_iter().enumerate().map(
+                |(i, (key, start, width))| {
+                    let focused = osk.row == row && i == focused_ix;
+                    let label: SharedString = match key {
+                        Key::Char(c) if osk.shift && c.is_ascii_alphabetic() => c.to_ascii_uppercase().to_string().into(),
+                        Key::Char(c) => c.to_string().into(),
+                        Key::Shift => "Shift".into(),
+                        Key::Symbols if osk.symbols => "abc".into(),
+                        Key::Symbols => "?123".into(),
+                        Key::Space => "Space".into(),
+                        Key::Erase => "Delete".into(),
+                        Key::Done => "Done".into(),
+                    };
+                    let word = !matches!(key, Key::Char(_));
+                    let lit = key == Key::Shift && osk.shift;
+                    div()
+                        .id(("osk-key", row * UNITS + start))
+                        // Each unit's share of the gaps, less the key's own.
+                        .w(px(unit_w * width as f32 - gap))
+                        .h(px(64.))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .rounded(t.radius)
+                        .map(|k| if word { k.text_lg() } else { k.text_2xl() })
+                        .cursor_pointer()
+                        .map(|k| {
+                            if focused {
+                                k.bg(t.foreground).text_color(t.background).font_semibold()
+                            } else if lit {
+                                k.bg(t.primary).text_color(t.primary_foreground)
+                            } else {
+                                k.bg(t.secondary).text_color(t.secondary_foreground)
+                            }
+                        })
+                        .child(label)
+                        .on_click(cx.listener(move |this, _, window, cx| {
+                            if let Some(osk) = &mut this.osk {
+                                osk.row = row;
+                                osk.unit = start;
+                            }
+                            this.osk_press_key(key, window, cx);
+                        }))
+                },
+            ))
         });
 
         let hint = |button: &'static str, what: &'static str| {
             h_flex()
-                .gap_1p5()
-                .child(div().px_1p5().rounded(px(4.)).border_1().border_color(t.border).child(button))
+                .gap_2()
+                .child(
+                    div()
+                        .min_w(px(28.))
+                        .px_1p5()
+                        .flex()
+                        .justify_center()
+                        .rounded(px(4.))
+                        .bg(t.foreground)
+                        .text_color(t.background)
+                        .font_semibold()
+                        .child(button),
+                )
                 .child(what)
         };
 
@@ -235,40 +299,42 @@ impl RootView {
                     return;
                 }
                 if let Some(c) = event.keystroke.key_char.as_deref().and_then(single_char) {
-                    this.osk_press_key(Key::Char(c.to_ascii_lowercase()), window, cx);
+                    this.osk_edit(|t| t.push(c), window, cx);
                     cx.stop_propagation();
                 }
             }))
-            .p(px(20.))
+            .p(px(40.))
             .gap(px(gap))
             .rounded(t.radius_lg)
             .border_1()
             .border_color(t.border)
             .bg(t.popover)
             .shadow_lg()
+            .child(div().text_2xl().child(title))
             .child(
                 div()
-                    .h(px(48.))
-                    .px(px(16.))
-                    .mb(px(8.))
+                    .h(px(64.))
+                    .px(px(20.))
+                    .my(px(16.))
                     .flex()
                     .items_center()
                     .rounded(t.radius)
                     .border_1()
-                    .border_color(t.ring)
-                    .text_xl()
+                    .border_color(t.muted_foreground)
+                    .bg(t.background)
+                    .text_2xl()
                     .child(shown),
             )
             .children(rows)
             .child(
                 h_flex()
-                    .mt(px(8.))
-                    .gap(px(20.))
+                    .mt(px(24.))
+                    .gap(px(32.))
                     .justify_center()
-                    .text_sm()
+                    .text_lg()
                     .text_color(t.muted_foreground)
                     .child(hint("A", "Type"))
-                    .child(hint("X", "Erase"))
+                    .child(hint("X", "Delete"))
                     .child(hint("Y", "Space"))
                     .child(hint("B", "Close")),
             );
@@ -276,11 +342,11 @@ impl RootView {
         Some(
             div()
                 .absolute()
-                .left_0()
-                .right_0()
-                .bottom(px(24.))
+                .inset_0()
                 .flex()
+                .items_center()
                 .justify_center()
+                .bg(black().opacity(0.5))
                 .child(panel)
                 .into_any_element(),
         )
@@ -301,75 +367,91 @@ mod tests {
     // Not `super::*`: that brings in GPUI's own `test` macro.
     use super::{row_keys, single_char, Key, Osk, ROWS, UNITS};
 
-    fn at(row: usize, unit: usize) -> Osk {
-        Osk { row, unit }
+    fn on(key: Key) -> impl Fn(&Osk) -> bool {
+        move |osk| osk.key() == key
     }
 
     #[test]
-    fn rows_fill_the_width() {
-        for row in 0..ROWS {
-            let keys = row_keys(row);
-            let (_, start, width) = keys.last().copied().unwrap();
-            assert_eq!(start + width, UNITS, "row {row}");
+    fn rows_fit_the_width_without_overlapping() {
+        for symbols in [false, true] {
+            for row in 0..ROWS {
+                let keys = row_keys(row, symbols);
+                for pair in keys.windows(2) {
+                    assert_eq!(pair[0].1 + pair[0].2, pair[1].1, "row {row}");
+                }
+                let (_, start, width) = *keys.last().unwrap();
+                assert!(start + width <= UNITS, "row {row}");
+            }
         }
     }
 
     #[test]
-    fn starts_on_1_and_moves_by_key() {
+    fn starts_on_q_and_moves_like_a_staggered_keyboard() {
         let mut osk = Osk::default();
-        assert_eq!(osk.key(), Key::Char('1'));
+        assert!(on(Key::Char('q'))(&osk));
         osk.step(0, 1);
-        assert_eq!(osk.key(), Key::Char('q'));
+        assert!(on(Key::Char('a'))(&osk));
+        // "a" sits over Shift, half a key in.
+        osk.step(0, 1);
+        assert!(on(Key::Shift)(&osk));
         osk.step(1, 0);
-        assert_eq!(osk.key(), Key::Char('w'));
+        assert!(on(Key::Char('z'))(&osk));
+        osk.step(0, 1);
+        assert!(on(Key::Space)(&osk));
+        osk.step(1, 0);
+        assert!(on(Key::Char('.'))(&osk));
+        osk.step(-1, 0);
+        // Up from Space's middle.
         osk.step(0, -1);
-        osk.step(0, -1);
-        assert_eq!(osk.key(), Key::Char('2'));
+        assert!(on(Key::Char('c'))(&osk));
     }
 
     #[test]
     fn left_and_right_wrap() {
-        let mut osk = at(1, 0);
+        let mut osk = Osk::default();
         osk.step(-1, 0);
-        assert_eq!(osk.key(), Key::Char('p'));
+        assert!(on(Key::Char('p'))(&osk));
         osk.step(1, 0);
-        assert_eq!(osk.key(), Key::Char('q'));
+        assert!(on(Key::Char('q'))(&osk));
+        osk.step(0, 1);
+        osk.step(0, 1);
+        osk.step(-1, 0);
+        assert!(on(Key::Erase)(&osk));
+        osk.step(1, 0);
+        assert!(on(Key::Shift)(&osk));
     }
 
     #[test]
-    fn the_bottom_row_keeps_the_column() {
-        // Down from "b" (unit 4) is Erase; up again is back over "b".
-        let mut osk = at(3, 4);
+    fn wide_keys_lead_to_the_key_under_their_middle() {
+        let mut osk = Osk::default();
         osk.step(0, 1);
-        assert_eq!(osk.key(), Key::Erase);
-        osk.step(0, -1);
-        assert_eq!(osk.key(), Key::Char('b'));
-        // Down from "z" is Space, and Right steps over Space in one go.
-        let mut osk = at(3, 0);
         osk.step(0, 1);
-        assert_eq!(osk.key(), Key::Space);
-        osk.step(1, 0);
-        assert_eq!(osk.key(), Key::Erase);
-        osk.step(1, 0);
-        osk.step(1, 0);
-        assert_eq!(osk.key(), Key::Done);
-        osk.step(1, 0);
-        assert_eq!(osk.key(), Key::Space);
         osk.step(-1, 0);
-        assert_eq!(osk.key(), Key::Done);
-        // Up from Done lands over its first unit.
+        assert!(on(Key::Erase)(&osk));
+        osk.step(0, 1);
+        assert!(on(Key::Done)(&osk));
         osk.step(0, -1);
-        assert_eq!(osk.key(), Key::Char('.'));
+        assert!(on(Key::Erase)(&osk));
+        osk.step(0, -1);
+        assert!(on(Key::Char('l'))(&osk));
     }
 
     #[test]
     fn stops_at_the_top_and_bottom() {
-        let mut osk = at(0, 3);
+        let mut osk = Osk::default();
         osk.step(0, -1);
-        assert_eq!(osk, at(0, 3));
-        let mut osk = at(ROWS - 1, 8);
-        osk.step(0, 1);
-        assert_eq!(osk.key(), Key::Done);
+        osk.step(0, -1);
+        assert!(on(Key::Char('1'))(&osk));
+        for _ in 0..6 {
+            osk.step(0, 1);
+        }
+        assert!(on(Key::Symbols)(&osk));
+    }
+
+    #[test]
+    fn the_symbol_page_has_the_same_shape() {
+        let osk = Osk { symbols: true, ..Osk::default() };
+        assert!(on(Key::Char('-'))(&osk));
     }
 
     #[test]
