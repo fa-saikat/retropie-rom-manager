@@ -1,3 +1,25 @@
+retropie-rom-manager (2.4.0-1) unstable; urgency=low
+
+  * Big Picture, a TV mode started with --big-picture: your systems as tabs,
+    games in a row and a big Play button, always fullscreen and dark.
+  * A refreshed look based on Material 3, with transitions between systems,
+    pages and games. Add emulator is now a full page, grouped by maker.
+  * Gamepads work natively, with no AntiMicroX or other mapping software:
+    the d-pad or stick moves, A selects, B goes back, X deletes and Y
+    scrapes. The pad is ignored while another window, such as a game, is in
+    front.
+  * An on-screen keyboard for searching in fullscreen. RT is Shift, X
+    deletes, Y types a space and Start is Done.
+  * Up from the games now goes to the search field, and the header is
+    walked in the rows it's drawn in.
+  * In Add emulator, Down stays within a group of systems until its last
+    row instead of jumping to the next group.
+  * The light or dark theme you pick is remembered between launches.
+  * Scraped covers are drawn from copies sized to the screen, which keeps
+    Big Picture smooth on low-end GPUs such as the Celeron J4125.
+
+ -- FA Saikat <fahimabrar.saikat@gmail.com>  Mon, 16 Nov 2026 12:35:29 +0600
+
 retropie-rom-manager (2.3.0-1) unstable; urgency=low
 
   * Everything works from the keyboard: the arrow keys, Enter and Backspace
