@@ -130,6 +130,9 @@ pub struct RootView {
     /// Bumped per audit, so a slow older one can't overwrite a newer one.
     audit_generation: u64,
     pub(super) focus_handle: FocusHandle,
+    /// The on-screen keyboard, while it's open, and its focus.
+    pub(super) osk: Option<super::osk::Osk>,
+    pub(super) osk_focus: FocusHandle,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -190,6 +193,8 @@ impl RootView {
             detect_cache: Arc::default(),
             audit_generation: 0,
             focus_handle,
+            osk: None,
+            osk_focus: cx.focus_handle(),
             _subscriptions: vec![subscription, emu_subscription],
         };
         cx.set_global(QuitTarget(cx.entity().downgrade()));
@@ -1026,7 +1031,9 @@ impl Render for RootView {
             .track_focus(&self.focus_handle)
             .on_action(cx.listener(Self::focus_search))
             .capture_any_mouse_down(cx.listener(|this, _, _, cx| this.hide_ring(cx)));
+        let osk = self.render_osk(window, cx);
         self.nav_actions(root, cx)
+            .relative()
             .size_full()
             .flex()
             .flex_row()
@@ -1041,5 +1048,6 @@ impl Render for RootView {
                     root.child(self.render_sidebar(window.is_fullscreen(), cx)).child(self.render_main(window, cx))
                 }
             })
+            .children(osk)
     }
 }

@@ -543,6 +543,8 @@ impl RootView {
                 HeaderItem::Scrape => self.start_scrape(Vec::new(), window, cx),
                 HeaderItem::AddRom => self.pick_and_install(window, cx),
                 HeaderItem::Notice => self.run_notice_action(window, cx),
+                // No keyboard is expected in fullscreen: type on screen (#56).
+                HeaderItem::Search if fullscreen => self.open_osk(window, cx),
                 HeaderItem::Search => self.active_search().update(cx, |s, cx| s.focus(window, cx)),
                 HeaderItem::View => {
                     let mode = if self.view_mode == ViewMode::Grid { ViewMode::List } else { ViewMode::Grid };

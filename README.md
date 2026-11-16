@@ -158,6 +158,7 @@ a button; in fullscreen it shows from the start.
 | Backspace  | Go back: from the games to the sidebar, out of a sheet or dialog, up a folder in the file browser |
 | P / S / X  | Play, scrape or delete the game that has the ring, without opening its details. X on a system in the sidebar removes it. Deleting always asks first. |
 | `/`        | Search the library. Down or Enter goes to the first match, and Esc clears the search. |
+| Enter on the search field | Type with the arrow keys: in fullscreen this opens an on-screen keyboard (see below). Elsewhere it puts the cursor in the field. |
 | Ctrl+Q     | Quit |
 
 In dialogs, the arrow keys move between the buttons and Enter presses the one
@@ -173,14 +174,23 @@ common pad (Xbox, PlayStation, Logitech, 8BitDo…) works the same way:
 | D-pad, left stick          | Arrow keys (held, they repeat) |
 | A / ✕ (bottom)             | Enter      |
 | B / ○ (right)              | Esc: go back, close a sheet or dialog, close the file browser |
-| X / □ (left)               | X: delete  |
-| Y / △ (top)                | S: scrape  |
+| X / □ (left)               | X: delete; on the on-screen keyboard, delete a character |
+| Y / △ (top)                | S: scrape; on the on-screen keyboard, space |
 
 The pad only works while ROM Manager's window is in front, so a game you start
-from it keeps the pad to itself. The guide button, Select, Start and the
-shoulder buttons aren't used. A pad without a built-in mapping can be given
+from it keeps the pad to itself. Start and RT are only used on the on-screen
+keyboard (below); the guide button, Select, LT and the shoulder buttons aren't
+used. A pad without a built-in mapping can be given
 one through `SDL_GAMECONTROLLERCONFIG`, the same as for SDL games. Running the
 app with `RUST_LOG=info` logs each pad it finds and where its mapping came from.
+
+To search without a keyboard in fullscreen, move to the search field and press
+A (or Enter). An on-screen keyboard opens at the bottom of the screen, below
+the matching games: the d-pad moves between keys, A types one and B closes the
+keyboard, keeping what you typed. Shift capitalises the next letter, **?123**
+switches to symbols, and **Done** goes to the matching games. Some keys have a
+button of their own, marked on the key: X deletes, Y types a space, RT is
+Shift and Start is Done. A real keyboard can type straight in while it's open.
 
 ## How it works
 

@@ -5,6 +5,7 @@ mod emulators;
 mod library;
 pub mod motion;
 pub mod nav;
+pub mod osk;
 mod root;
 pub mod scale;
 pub mod shape;
