@@ -14,9 +14,12 @@
 //!
 //! as Big Picture's button hints show. The pad presses and releases those
 //! keys in the window, so every screen keeps the key bindings it already
-//! has and works the same with either. Directions repeat while held. The
-//! guide button, Select, Start and the shoulder buttons do nothing here: a
-//! shell running the app may use them, and while AntiMicroX is in use it
+//! has and works the same with either. Directions repeat while held.
+//!
+//! On the on-screen keyboard X and Y send Backspace and Space instead, and
+//! RT and Start work its Shift and Done keys; they do nothing anywhere else.
+//! The guide button, Select and the other shoulder buttons do nothing here:
+//! a shell running the app may use them, and while AntiMicroX is in use it
 //! maps the shoulders to keys of its own.
 //!
 //! A thread waits on gilrs and sends inputs to the UI thread, which hands
@@ -56,12 +59,16 @@ pub(crate) enum PadInput {
     Back,
     Delete,
     Scrape,
+    /// RT: Shift on the on-screen keyboard.
+    Shift,
+    /// Start: Done on the on-screen keyboard.
+    Done,
 }
 
 impl PadInput {
-    /// The key it stands for.
-    fn key(self) -> &'static str {
-        match self {
+    /// The key it stands for, if any.
+    fn key(self) -> Option<&'static str> {
+        Some(match self {
             PadInput::Up => "up",
             PadInput::Down => "down",
             PadInput::Left => "left",
@@ -70,7 +77,8 @@ impl PadInput {
             PadInput::Back => "escape",
             PadInput::Delete => "x",
             PadInput::Scrape => "s",
-        }
+            PadInput::Shift | PadInput::Done => return None,
+        })
     }
 
     /// The input a key (GPUI's name for it, no modifiers) is a copy of.
@@ -156,6 +164,19 @@ pub fn start(cx: &mut App) {
 
 /// Press, hold or release the input's key in the window.
 fn send(msg: Msg, window: &mut Window, cx: &mut App) {
+    // RT and Start have no key: they only work the on-screen keyboard.
+    if let Msg::Press(input @ (PadInput::Shift | PadInput::Done)) = msg {
+        if window.context_stack().iter().any(|c| c.contains(osk::KEY_CONTEXT)) {
+            let action: Box<dyn gpui_kit::Action> =
+                if input == PadInput::Shift { Box::new(osk::Shift) } else { Box::new(osk::Done) };
+            window.dispatch_action(action, cx);
+        }
+        return;
+    }
+    let (Msg::Press(input) | Msg::Repeat(input) | Msg::Release(input)) = msg;
+    if input.key().is_none() {
+        return;
+    }
     let (input, event) = match msg {
         Msg::Press(input) | Msg::Repeat(input) => {
             let held = matches!(msg, Msg::Repeat(_));
@@ -186,7 +207,7 @@ fn send(msg: Msg, window: &mut Window, cx: &mut App) {
 }
 
 fn keystroke(input: PadInput) -> Keystroke {
-    Keystroke::parse(input.key()).expect("a plain key name")
+    Keystroke::parse(input.key().expect("only inputs with keys get here")).expect("a plain key name")
 }
 
 fn read_pads(tx: async_channel::Sender<Msg>) {
@@ -259,7 +280,9 @@ impl PadState {
             Button::East => PadInput::Back,
             Button::West => PadInput::Delete,
             Button::North => PadInput::Scrape,
-            // Guide, Select, Start, shoulders and triggers.
+            Button::RightTrigger2 => PadInput::Shift,
+            Button::Start => PadInput::Done,
+            // Guide, Select, the shoulders and LT.
             _ => return,
         };
         if pressed {
@@ -476,16 +499,33 @@ mod tests {
     }
 
     #[test]
-    fn guide_select_start_and_shoulders_do_nothing() {
+    fn rt_and_start_are_shift_and_done_and_dont_repeat() {
+        let (mut pad, mut out, t) = setup();
+        pad.button(Button::RightTrigger2, true, t, &mut out);
+        pad.tick(t + ms(1000), &mut out);
+        pad.button(Button::RightTrigger2, false, t + ms(1000), &mut out);
+        pad.button(Button::Start, true, t + ms(1100), &mut out);
+        pad.button(Button::Start, false, t + ms(1200), &mut out);
+        assert_eq!(
+            out,
+            [
+                Msg::Press(PadInput::Shift),
+                Msg::Release(PadInput::Shift),
+                Msg::Press(PadInput::Done),
+                Msg::Release(PadInput::Done)
+            ]
+        );
+    }
+
+    #[test]
+    fn guide_select_shoulders_and_lt_do_nothing() {
         let (mut pad, mut out, t) = setup();
         for button in [
             Button::Mode,
             Button::Select,
-            Button::Start,
             Button::LeftTrigger,
             Button::RightTrigger,
             Button::LeftTrigger2,
-            Button::RightTrigger2,
         ] {
             pad.button(button, true, t, &mut out);
             pad.tick(t + ms(5000), &mut out);

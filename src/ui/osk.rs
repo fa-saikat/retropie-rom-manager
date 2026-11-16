@@ -2,8 +2,10 @@
 //!
 //! Enter on the search field opens it instead of the text cursor. The arrow
 //! keys move between keys, Enter presses one, Backspace erases, Space types a
-//! space and Esc closes it, so a pad drives it like everything else: A types,
-//! B closes, and the pad sends Backspace for X and Space for Y here (see
+//! space and Esc closes it, so a pad drives it like everything else: A types
+//! and B closes. Other buttons are shortcuts, marked on their keys: X
+//! deletes and Y types a space (the pad sends Backspace and Space for them
+//! here), RT is Shift and Start is Done (sent as `Shift` and `Done`; see
 //! `gamepad.rs`). A real keyboard can still type straight in.
 //!
 //! The layout is a staggered QWERTY with a digits row, Shift and Delete
@@ -17,7 +19,7 @@ use gpui_kit::*;
 use super::root::{Page, RootView};
 use super::scale::px;
 
-gpui_kit::actions!(osk, [Up, Down, Left, Right, Press, Erase, Space, Close]);
+gpui_kit::actions!(osk, [Up, Down, Left, Right, Press, Erase, Space, Close, Shift, Done]);
 
 /// Active while the keyboard has focus.
 pub const KEY_CONTEXT: &str = "OnScreenKeyboard";
@@ -227,11 +229,20 @@ impl RootView {
                     };
                     let word = !matches!(key, Key::Char(_));
                     let lit = key == Key::Shift && osk.shift;
+                    // The pad button that's a shortcut for the key.
+                    let shortcut = match key {
+                        Key::Shift => Some("RT"),
+                        Key::Erase => Some("X"),
+                        Key::Space => Some("Y"),
+                        Key::Done => Some("Start"),
+                        _ => None,
+                    };
                     div()
                         .id(("osk-key", row * UNITS + start))
+                        .relative()
                         // Each unit's share of the gaps, less the key's own.
                         .w(px(unit_w * width as f32 - gap))
-                        .h(px(64.))
+                        .h(px(54.))
                         .flex()
                         .items_center()
                         .justify_center()
@@ -248,6 +259,26 @@ impl RootView {
                             }
                         })
                         .child(label)
+                        .when_some(shortcut, |k, button| {
+                            k.child(
+                                div()
+                                    .absolute()
+                                    .top(px(5.))
+                                    .left(px(5.))
+                                    .min_w(px(20.))
+                                    .h(px(20.))
+                                    .px(px(5.))
+                                    .flex()
+                                    .items_center()
+                                    .justify_center()
+                                    .rounded(px(10.))
+                                    .bg(t.foreground)
+                                    .text_color(t.background)
+                                    .text_xs()
+                                    .font_semibold()
+                                    .child(button),
+                            )
+                        })
                         .on_click(cx.listener(move |this, _, window, cx| {
                             if let Some(osk) = &mut this.osk {
                                 osk.row = row;
@@ -292,6 +323,8 @@ impl RootView {
             .on_action(cx.listener(|this, _: &Erase, window, cx| this.osk_press_key(Key::Erase, window, cx)))
             .on_action(cx.listener(|this, _: &Space, window, cx| this.osk_press_key(Key::Space, window, cx)))
             .on_action(cx.listener(|this, _: &Close, window, cx| this.close_osk(window, cx)))
+            .on_action(cx.listener(|this, _: &Shift, window, cx| this.osk_press_key(Key::Shift, window, cx)))
+            .on_action(cx.listener(|this, _: &Done, window, cx| this.osk_press_key(Key::Done, window, cx)))
             // A real keyboard types straight in.
             .on_key_down(cx.listener(|this, event: &KeyDownEvent, window, cx| {
                 let m = &event.keystroke.modifiers;
@@ -303,19 +336,19 @@ impl RootView {
                     cx.stop_propagation();
                 }
             }))
-            .p(px(40.))
+            .p(px(24.))
             .gap(px(gap))
             .rounded(t.radius_lg)
             .border_1()
             .border_color(t.border)
             .bg(t.popover)
             .shadow_lg()
-            .child(div().text_2xl().child(title))
+            .child(div().text_xl().child(title))
             .child(
                 div()
-                    .h(px(64.))
+                    .h(px(54.))
                     .px(px(20.))
-                    .my(px(16.))
+                    .my(px(10.))
                     .flex()
                     .items_center()
                     .rounded(t.radius)
@@ -328,25 +361,24 @@ impl RootView {
             .children(rows)
             .child(
                 h_flex()
-                    .mt(px(24.))
+                    .mt(px(16.))
                     .gap(px(32.))
                     .justify_center()
                     .text_lg()
                     .text_color(t.muted_foreground)
                     .child(hint("A", "Type"))
-                    .child(hint("X", "Delete"))
-                    .child(hint("Y", "Space"))
                     .child(hint("B", "Close")),
             );
 
+        // At the bottom, so the results above stay in sight.
         Some(
             div()
                 .absolute()
-                .inset_0()
+                .left_0()
+                .right_0()
+                .bottom(px(24.))
                 .flex()
-                .items_center()
                 .justify_center()
-                .bg(black().opacity(0.5))
                 .child(panel)
                 .into_any_element(),
         )

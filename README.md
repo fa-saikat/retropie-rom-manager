@@ -178,17 +178,19 @@ common pad (Xbox, PlayStation, Logitech, 8BitDo…) works the same way:
 | Y / △ (top)                | S: scrape; on the on-screen keyboard, space |
 
 The pad only works while ROM Manager's window is in front, so a game you start
-from it keeps the pad to itself. The guide button, Select, Start and the
-shoulder buttons aren't used. A pad without a built-in mapping can be given
+from it keeps the pad to itself. Start and RT are only used on the on-screen
+keyboard (below); the guide button, Select, LT and the shoulder buttons aren't
+used. A pad without a built-in mapping can be given
 one through `SDL_GAMECONTROLLERCONFIG`, the same as for SDL games. Running the
 app with `RUST_LOG=info` logs each pad it finds and where its mapping came from.
 
 To search without a keyboard in fullscreen, move to the search field and press
-A (or Enter). An on-screen keyboard opens: the d-pad moves between keys, A
-types one, X deletes, Y types a space and B closes the keyboard, keeping what
-you typed. Shift capitalises the next letter, **?123** switches to symbols, and
-**Done** goes to the matching games. A real keyboard can type straight in
-while it's open.
+A (or Enter). An on-screen keyboard opens at the bottom of the screen, below
+the matching games: the d-pad moves between keys, A types one and B closes the
+keyboard, keeping what you typed. Shift capitalises the next letter, **?123**
+switches to symbols, and **Done** goes to the matching games. Some keys have a
+button of their own, marked on the key: X deletes, Y types a space, RT is
+Shift and Start is Done. A real keyboard can type straight in while it's open.
 
 ## How it works
 
